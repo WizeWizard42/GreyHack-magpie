@@ -798,11 +798,26 @@ ShellCommands.run_command = function(args)
     end if
 end function
 
+ShellCommands.try_ping = function(args)
+    if StateManager.focused_object["shell"] == null then
+        return "Shell object not set."
+    end if
+    ip = args["ip"]
+
+    is_pingable = ping(StateManager.focused_object["shell"], ip)
+
+    if typeof(is_pingable) == "string" then return is_pingable
+    if is_pingable then return "Ping successful."
+
+    return "Ping failed."
+end function
+
 MiniClick.createCommand("shell", "Drop to a shell").setFunction(ShellCommands["drop_shell"]).build()
 MiniClick.createCommand("build", "Build a file").addArgument("source_path", "The path to the source file").addArgument("destination_path", "The path to the destination folder").addOption("can_import", "Allow the file to be imported", false, "i").setFunction(ShellCommands["build_file"]).build()
 MiniClick.createCommand("get", "Get a file").addArgument("source_path", "The path to the source file").addArgument("destination_path", "The path to the destination folder").addOption("to_relative", "Put the file in your current relative shell", false, "r").setFunction(ShellCommands["get_file"]).build()
 MiniClick.createCommand("put", "Put a file").addArgument("source_path", "The path to the source file").addArgument("destination_path", "The path to the destination folder").addOption("from_relative", "Get the file from your current relative shell", false, "r").setFunction(ShellCommands["put_file"]).build()
 MiniClick.createCommand("launch", "Run an external program").addArgument("program", "The program to run").addArgument("params", "The parameters to pass to the program", true).setFunction(ShellCommands["run_command"]).build()
+MiniClick.createCommand("ping", "Ping an IP address").addArgument("ip", "The IP address to ping").setFunction(ShellCommands["try_ping"]).build()
 
 ////////////////////////////////////////////////////
 // Basic testing usage
