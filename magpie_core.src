@@ -191,6 +191,7 @@ CommandBuilder = function(name, description)
             "description": self.description,
             "options": self.options,
             "arguments": self.arguments,
+            "is_alias": false,
             "func": self["func"],
         }
     end function
@@ -380,6 +381,69 @@ StateManager.set_object = function(object)
 
     return "Invalid object type: " + type
 end function
+
+////////////////////////////////////////////////////
+
+StateCommands = {} // CLI commands for interacting with StateManager
+StateCommands.classID = "StateCommands"
+
+// TODO: This stuff
+
+////////////////////////////////////////////////////
+
+UtilityCommands = {}
+UtilityCommands.classID = "UtilityCommands"
+
+UtilityCommands.echo = function(args)
+    return args["message"].join(" ")
+end function
+
+UtilityCommands.clear = function(args)
+    clear_screen()
+end function
+
+UtilityCommands.help = function(args)
+    return MiniClick.generate_help
+end function
+
+UtilityCommands.set_alias = function(args)
+    alias = args["alias"]
+    command = args["command"]
+
+    if MiniClick.commands.hasIndex(alias) then
+        return "Alias already exists: " + alias
+    end if
+
+    if not MiniClick.commands.hasIndex(command) then
+        return "Unknown command: " + command
+    end if
+
+    MiniClick.commands[alias] = MiniClick.commands[command]
+    Miniclick.commands[alias].is_alias = true
+end function
+
+UtilityCommands.unset_alias = function(args)
+    alias = args["alias"]
+
+    if not MiniClick.commands.hasIndex(alias) then
+        return "Unknown alias: " + alias
+    end if
+
+    if not MiniClick.commands[alias].is_alias then
+        return "Not an alias: " + alias
+    end if
+
+    MiniClick.commands.remove(alias)
+    return "Alias removed: " + alias
+end function
+
+MiniClick.createCommand("echo", "Print a message").addArgument("message", "The message to print", true).setFunction(UtilityCommands["echo"]).build()
+MiniClick.createCommand("clear", "Clear the screen").setFunction(UtilityCommands["clear"]).build()
+MiniClick.createCommand("help", "Show help text").setFunction(UtilityCommands["help"]).build()
+MiniClick.createCommand("alias", "Create a command alias").addArgument("alias", "The alias to create").addArgument("command", "The command to alias").setFunction(UtilityCommands["set_alias"]).build()
+MiniClick.createCommand("unalias", "Remove a command alias").addArgument("alias", "The alias to remove").setFunction(UtilityCommands["unset_alias"]).build()
+
+////////////////////////////////////////////////////
 
 FileCommands = {}
 FileCommands.classID = "FileCommands"
