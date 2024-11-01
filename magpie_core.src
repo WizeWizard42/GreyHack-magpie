@@ -352,21 +352,36 @@ end function
 //#include testing/test_harness.src;
 
 StateManager = {}
+StateManager.classID = "StateManager"
 
 StateManager.focused_object = {"file": null, "computer": null, "shell": null} // The object currently being interacted with
+StateManager.home_shell = get_shell
 
 StateManager.set_object = function(object)
     type = typeof(object)
 
-    self.focused_object["file"] = (type == "file" and object) or (type == "computer" and object.File("/")) or (type == "shell" and object.host_computer.File("/") or null)
-    self.focused_object["computer"] = (type == "computer" and object) or (type == "shell" and object.host_computer or null)
-    self.focused_object["shell"] = (type == "shell" and object) or null
+    if type == "shell" then
+        self.focused_object["file"] = object.host_computer.File("/")
+        self.focused_object["computer"] = object.host_computer
+        self.focused_object["shell"] = object
+        return
+    end if
 
-    if self.focused_object["file"] == null then return "Invalid object type: " + type
+    if type == "computer" then
+        self.focused_object["file"] = object.File("/")
+        self.focused_object["computer"] = object
+        return
+    end if
+
+    if type == "file" then
+        self.focused_object["file"] = object
+        return
+    end if
+
+    return "Invalid object type: " + type
 end function
 
 FileCommands = {}
-
 FileCommands.classID = "FileCommands"
 
 FileCommands.read_file = function(args)
@@ -621,6 +636,173 @@ MiniClick.createCommand("chown", "Change file owner").addArgument("filename", "T
 MiniClick.createCommand("cp", "Copy a file").addArgument("filename", "The name of the file to copy").addArgument("destination", "The destination folder").addArgument("newname", "The new name of the file").setFunction(FileCommands["copy_file"]).build()
 MiniClick.createCommand("mv", "Move a file").addArgument("filename", "The name of the file to move").addArgument("destination", "The destination folder").addArgument("newname", "The new name of the file").setFunction(FileCommands["move_file"]).build()
 
+////////////////////////////////////////////////////
+
+ComputerCommands = {}
+ComputerCommands.classID = "ComputerCommands"
+
+ComputerCommands.view_procs = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    return format_columns(StateManager.focused_object["computer"].show_procs)
+end function
+
+ComputerCommands.kill_proc = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    pid = args["pid"].to_int
+    if typeof(pid) != "number" then return "Invalid PID: " + args["pid"]
+    
+    return StateManager.focused_object["computer"].close_program(pid)
+end function
+
+ComputerCommands.add_user = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    username = args["username"]
+    password = args["password"]
+
+    return StateManager.focused_object["computer"].create_user(username, password)
+end function
+
+ComputerCommands.remove_user = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    username = args["username"]
+    remove_home = args["remove_home"]
+
+    return StateManager.focused_object["computer"].delete_user(username, remove_home)
+end function
+
+ComputerCommands.add_group = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    username = args["username"]
+    groupname = args["groupname"]
+
+    return StateManager.focused_object["computer"].create_group(username, groupname)
+end function
+
+ComputerCommands.remove_group = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    username = args["username"]
+    groupname = args["groupname"]
+
+    return StateManager.focused_object["computer"].delete_group(username, groupname)
+end function
+
+ComputerCommands.create_file = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    path = args["path"]
+    filename = args["filename"]
+
+    return StateManager.focused_object["computer"].touch(path, filename)
+end function
+
+ComputerCommands.create_folder = function(args)
+    if StateManager.focused_object["computer"] == null then
+        return "Computer object not set."
+    end if
+    path = args["path"]
+    foldername = args["foldername"]
+
+    return StateManager.focused_object["computer"].create_folder(path, foldername)
+end function
+
+MiniClick.createCommand("ps", "View running processes").setFunction(ComputerCommands["view_procs"]).build()
+MiniClick.createCommand("kill", "Kill a running process").addArgument("pid", "The PID of the process to kill").setFunction(ComputerCommands["kill_proc"]).build()
+MiniClick.createCommand("adduser", "Add a new user").addArgument("username", "The username of the new user").addArgument("password", "The password of the new user").setFunction(ComputerCommands["add_user"]).build()
+MiniClick.createCommand("deluser", "Delete a user").addArgument("username", "The user to delete").addOption("remove_home", "Remove the user's home directory", false, "r").setFunction(ComputerCommands["remove_user"]).build()
+MiniClick.createCommand("addgroup", "Add a new group").addArgument("username", "The user to add to the group").addArgument("groupname", "The name of the new group").setFunction(ComputerCommands["add_group"]).build()
+MiniClick.createCommand("delgroup", "Delete a group").addArgument("username", "The user to remove from the group").addArgument("groupname", "The name of the group to delete").setFunction(ComputerCommands["remove_group"]).build()
+MiniClick.createCommand("touch", "Create a new file").addArgument("path", "The path to create the file in").addArgument("filename", "The name of the new file").setFunction(ComputerCommands["create_file"]).build()
+MiniClick.createCommand("mkdir", "Create a new folder").addArgument("path", "The path to create the folder in").addArgument("foldername", "The name of the new folder").setFunction(ComputerCommands["create_folder"]).build()
+
+////////////////////////////////////////////////////
+
+ShellCommands = {}
+ShellCommands.classID = "ShellCommands"
+
+ShellCommands.drop_shell = function(args)
+    if StateManager.focused_object["shell"] == null then
+        return "Shell object not set."
+    end if
+
+    confirm = user_input("Are you absolutely sure you want to drop to a shell? (y/n): ")
+    if confirm == "y" then
+        print("Dropping to shell...")
+        return start_terminal(StateManager.focused_object["shell"])
+    end if
+end function
+
+ShellCommands.build_file = function(args)
+    if StateManager.focused_object["shell"] == null then
+        return "Shell object not set."
+    end if
+    source_path = args["source_path"]
+    destination_path = args["destination_path"]
+    can_import = args["can_import"]
+
+    return build(StateManager.focused_object["shell"], source_path, destination_path, can_import)
+end function
+
+ShellCommands.get_file = function(args)
+    if StateManager.focused_object["shell"] == null then
+        return "Shell object not set."
+    end if
+    source_path = args["source_path"]
+    destination_path = args["destination_path"]
+    to_relative = args["to_relative"]
+
+    if to_relative then
+        return scp(StateManager.focused_object["shell"], source_path, destination_path, get_shell)
+    end if
+
+    return scp(StateManager.focused_object["shell"], source_path, destination_path, StateManager.home_shell)
+end function
+
+ShellCommands.put_file = function(args)
+    if StateManager.focused_object["shell"] == null then
+        return "Shell object not set."
+    end if
+    source_path = args["source_path"]
+    destination_path = args["destination_path"]
+    from_relative = args["from_relative"]
+
+    if from_relative then
+        return scp(get_shell, destination_path, source_path, StateManager.focused_object["shell"])
+    end if
+
+    return scp(StateManager.home_shell, destination_path, source_path, StateManager.focused_object["shell"])
+end function
+
+ShellCommands.run_command = function(args)
+    if StateManager.focused_object["shell"] == null then
+        return "Shell object not set."
+    end if
+    program = args["program"]
+    params = args["params"].join(" ")
+
+    confirm = user_input("Are you sure you want to run an external program? You will lose your current context. (y/n): ")
+    if confirm == "y" then
+        return launch(StateManager.focused_object["shell"], program, params)
+    end if
+end function
+
+MiniClick.createCommand("shell", "Drop to a shell").setFunction(ShellCommands["drop_shell"]).build()
+MiniClick.createCommand("build", "Build a file").addArgument("source_path", "The path to the source file").addArgument("destination_path", "The path to the destination folder").addOption("can_import", "Allow the file to be imported", false, "i").setFunction(ShellCommands["build_file"]).build()
+MiniClick.createCommand("get", "Get a file").addArgument("source_path", "The path to the source file").addArgument("destination_path", "The path to the destination folder").addOption("to_relative", "Put the file in your current relative shell", false, "r").setFunction(ShellCommands["get_file"]).build()
+MiniClick.createCommand("put", "Put a file").addArgument("source_path", "The path to the source file").addArgument("destination_path", "The path to the destination folder").addOption("from_relative", "Get the file from your current relative shell", false, "r").setFunction(ShellCommands["put_file"]).build()
+MiniClick.createCommand("launch", "Run an external program").addArgument("program", "The program to run").addArgument("params", "The parameters to pass to the program", true).setFunction(ShellCommands["run_command"]).build()
 
 ////////////////////////////////////////////////////
 // Basic testing usage
@@ -629,10 +811,10 @@ MiniClick.createCommand("mv", "Move a file").addArgument("filename", "The name o
 // Uncomment to enable File tests
 //#include testing/file_tests.src;
 
-StateManager.focused_object["file"] = get_shell.host_computer.File("/var")
+StateManager.set_object(StateManager.home_shell)
 
 while true
-    command = user_input("# ")
+    command = user_input(StateManager.focused_object["file"].path + "# ")
     if command == "exit" then
         break
     end if

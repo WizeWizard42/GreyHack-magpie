@@ -6,96 +6,58 @@
 //By MachaCeleste 20240205
 map.first=function(key,value)
 for each in self.indexes
-if self[each][key]==value then
-return self[each]
-end if
+if self[each][key]==value then return self[each]
 end for
 end function
 map.where=function(key,value)
 ret={}
 for each in self.indexes
-if self[each][key]==value then
-ret.push(self[each])
-end if
+if self[each][key]==value then ret.push(self[each])
 end for
 return ret
 end function
 map.wherenot=function(key,value)
 ret={}
 for each in self.indexes
-if self[each][key]!=value then
-ret.push(self[each])
-end if
+if self[each][key]!=value then ret.push(self[each])
 end for
 return ret
 end function
 map.hasMethod=function(method)
 ref=self
-if ref.hasIndex(method) then
-return true
-end if
+if ref.hasIndex(method) then return true
 while ref.hasIndex("__isa")
 ref=ref["__isa"]
-if ref.hasIndex(method) then
-return true
-end if
+if ref.hasIndex(method) then return true
 end while
 return false
 end function
 list.first=function(key,value)
 for each in self
 if typeof(each)=="string" then
-if key=="is" and each==value then
-return each
-end if
-if key=="contains" and each.is_match(value) then
-return each
-end if
-if key=="len" and each.len==value then
-return each
-end if
+if key=="is" and each==value then return each
+if key=="contains" and each.is_match(value) then return each
+if key=="len" and each.len==value then return each
 else if typeof(each)=="file" then
-if key=="name" and each.name==value then
-return each
-end if
-if key=="namehas" and each.name.is_match(value) then
-ret.push(each)
-end if
-if key=="path" and each.path==value then
-return each
-end if
-if key=="permissions" and each.permissions==value then
-return each
-end if
+if key=="name" and each.name==value then return each
+if key=="namehas" and each.name.is_match(value) then ret.push(each)
+if key=="path" and each.path==value then return each
+if key=="permissions" and each.permissions==value then return each
 if key=="has_permission" then
 v=value.values
 c=""
 for p in v
-if each.has_permission(p) then
-c=c+p
-end if
+if each.has_permission(p) then c=c+p
 end for
-if c==value then
-return each
+if c==value then return each
 end if
-end if
-if key=="size" and each.size==value then
-return each
-end if
+if key=="size" and each.size==value then return each
 else if typeof(each)=="port" then
-if key=="port_number" and each.port_number==value then
-return each
-end if
-if key=="is_closed" and each.is_closed==value then
-return each
-end if
-if key=="get_lan_ip" and each.get_lan_ip==value then
-return each
-end if
+if key=="port_number" and each.port_number==value then return each
+if key=="is_closed" and each.is_closed==value then return each
+if key=="get_lan_ip" and each.get_lan_ip==value then return each
 else if typeof(each)=="map" then
-if each[key]==value then
-return each
-end if
+if each[key]==value then return each
 end if
 end for
 end function
@@ -103,57 +65,29 @@ list.where=function(key,value)
 ret=[]
 for each in self
 if typeof(each)=="string" then
-if key=="is" and each==value then
-ret.push(each)
-end if
-if key=="contains" and each.is_match(value) then
-ret.push(each)
-end if
-if key=="len" and each.len==value then
-ret.push(each)
-end if
+if key=="is" and each==value then ret.push(each)
+if key=="contains" and each.is_match(value) then ret.push(each)
+if key=="len" and each.len==value then ret.push(each)
 else if typeof(each)=="file" then
-if key=="name" and each.name==value then
-ret.push(each)
-end if
-if key=="namehas" and each.name.is_match(value) then
-ret.push(each)
-end if
-if key=="path" and each.path==value then
-ret.push(each)
-end if
-if key=="permissions" and each.permissions==value then
-ret.push(each)
-end if
+if key=="name" and each.name==value then ret.push(each)
+if key=="namehas" and each.name.is_match(value) then ret.push(each)
+if key=="path" and each.path==value then ret.push(each)
+if key=="permissions" and each.permissions==value then ret.push(each)
 if key=="has_permission" then
 v=value.values
 c=""
 for p in v
-if each.has_permission(p) then
-c=c+p
-end if
+if each.has_permission(p) then c=c+p
 end for
-if c==value then
-ret.push(each)
+if c==value then ret.push(each)
 end if
-end if
-if key=="size" and each.size==value then
-ret.push(each)
-end if
+if key=="size" and each.size==value then ret.push(each)
 else if typeof(each)=="port" then
-if key=="port_number" and each.port_number==value then
-ret.push(each)
-end if
-if key=="is_closed" and each.is_closed==value then
-ret.push(each)
-end if
-if key=="get_lan_ip" and each.get_lan_ip==value then
-ret.push(each)
-end if
+if key=="port_number" and each.port_number==value then ret.push(each)
+if key=="is_closed" and each.is_closed==value then ret.push(each)
+if key=="get_lan_ip" and each.get_lan_ip==value then ret.push(each)
 else if typeof(each)=="map" then
-if each[key]==value then
-ret.push(each)
-end if
+if each[key]==value then ret.push(each)
 end if
 end for
 return ret
@@ -162,62 +96,34 @@ list.wherenot=function(key,value)
 ret=[]
 for each in self
 if typeof(each)=="string" then
-if key=="is" and each!=value then
-ret.push(each)
-end if
-if key=="contains" and not each.is_match(value) then
-ret.push(each)
-end if
-if key=="len" and each.len!=value then
-ret.push(each)
-end if
+if key=="is" and each!=value then ret.push(each)
+if key=="contains" and not each.is_match(value) then ret.push(each)
+if key=="len" and each.len!=value then ret.push(each)
 else if typeof(each)=="file" then
-if key=="name" and each.name!=value then
-ret.push(each)
-end if
-if key=="namehas" and each.name.is_match(value) then
-ret.push(each)
-end if
-if key=="path" and each.path!=value then
-ret.push(each)
-end if
-if key=="permissions" and each.permissions!=value then
-ret.push(each)
-end if
+if key=="name" and each.name!=value then ret.push(each)
+if key=="namehas" and each.name.is_match(value) then ret.push(each)
+if key=="path" and each.path!=value then ret.push(each)
+if key=="permissions" and each.permissions!=value then ret.push(each)
 if key=="has_permission" then
 v=value.values
 c=""
 for p in v
-if each.has_permission(p) then
-c=c+p
-end if
+if each.has_permission(p) then c=c+p
 end for
-if c!=value then
-ret.push(each)
+if c!=value then ret.push(each)
 end if
-end if
-if key=="size" and each.size!=value then
-ret.push(each)
-end if
+if key=="size" and each.size!=value then ret.push(each)
 else if typeof(each)=="port" then
-if key=="port_number" and each.port_number!=value then
-ret.push(each)
-end if
-if key=="is_closed" and each.is_closed!=value then
-ret.push(each)
-end if
-if key=="get_lan_ip" and each.get_lan_ip!=value then
-ret.push(each)
-end if
+if key=="port_number" and each.port_number!=value then ret.push(each)
+if key=="is_closed" and each.is_closed!=value then ret.push(each)
+if key=="get_lan_ip" and each.get_lan_ip!=value then ret.push(each)
 else if typeof(each)=="map" then
-if each[key]!=value then
-ret.push(each)
-end if
+if each[key]!=value then ret.push(each)
 end if
 end for
 return ret
 end function
-string.regex_escape=function()
+string.regex_escape=function
 result=self
 for x in "+*?^$.[]{}()|/"
 result=result.replace("\"+x,"\"+x)
@@ -229,87 +135,223 @@ end function
 string.color=function(hexc)
 return "<color="+hexc+">"+self+"</color>"
 end function
-Command={}
-Command.execute=function(context,args)
-exit("Abstract method Command.execute() must be overridden.")
+// Miniclick by Merlin Newcomb 2024
+MiniClick={}
+// Initialize the commands collection
+MiniClick.commands={}
+// CommandBuilder "Class"
+CommandBuilder=function(name,description)
+obj={}
+obj.name=name
+obj.description=description
+obj.options={}
+obj.arguments=[]
+obj.addOption=function(name,description,default=false,short_name=null)
+option_data={"name":name,"description":description,"default":default,"short_name":short_name}
+self.options[name]=option_data
+if short_name!=null then
+self.options[short_name]=option_data
+// Allow -<short_name> as alias
+end if
+return self
+// Enable method chaining
+end function
+obj.addArgument=function(name,description,is_rest=false)
+self.arguments.push({"name":name,"description":description,"is_rest":is_rest})
+return self
+end function
+obj.setFunction=function(func)
+self.func=@func
+return self
+end function
+obj.build=function
+if MiniClick.commands.hasIndex(self.name) then
+print("Warning: Overwriting existing command '"+self.name+"'")
+end if
+MiniClick.commands[self.name]={"name":self.name,"description":self.description,"options":self.options,"arguments":self.arguments,"func":self["func"]}
+end function
+return obj
+end function
+// MiniClick Namespace Methods
+MiniClick.createCommand=function(name,description)
+return CommandBuilder(name,description)
+end function
+// Parsing Arguments and Options
+MiniClick.parse_args=function(command,args)
+parsed={}
+arg_index=0
+i=0
+handle_option=function(option_name,is_short)
+if not command.options.hasIndex(option_name) then
+print("Unknown option: "+option_name)
+return false
+end if
+option=command.options[option_name]
+if typeof(option.default)=="number" and option.default==false then
+parsed[option_name]=true
+else
+if i+1>=args.len then
+print("Option "+(is_short and "-" or "--")+option_name+" requires a value")
+return false
+end if
+i=i+1
+parsed[option_name]=args[i]
+end if
+return true
+end function
+while i<args.len
+arg=args[i]
+if arg[:2]=="--" then
+if not handle_option(arg[2:],false) then return null
+else if arg[:1]=="-" then
+short_name=arg[1:]
+if not command.options.hasIndex(short_name) then
+print("Unknown option: "+short_name)
+return null
+end if
+long_name=command.options[short_name].name
+if not handle_option(long_name,true) then return null
+else
+if arg_index>=command.arguments.len then
+print("Too many arguments")
+return null
+end if
+arg_def=command.arguments[arg_index]
+arg_name=arg_def.name
+if arg_def.is_rest then
+parsed[arg_name]=args[i:]
+arg_index=arg_index+1
+break
+else
+parsed[arg_name]=arg
+arg_index=arg_index+1
+end if
+end if
+i=i+1
+end while
+for option_name in command.options.indexes
+if not parsed.hasIndex(option_name) then
+parsed[option_name]=command.options[option_name].default
+end if
+end for
+if arg_index<command.arguments.len then
+print("Not enough arguments")
+return null
+end if
+return parsed
+end function
+// Generating Help Text
+MiniClick.generate_help=function(command_name=null)
+if command_name==null then
+help_text="Available commands:\n"
+for name in MiniClick.commands.indexes
+command=MiniClick.commands[name]
+help_text=help_text+name+": "+command.description+"\n"
+end for
+help_text=help_text+"\nUse 'command --help' for more information on a specific command."
+else
+if not MiniClick.commands.hasIndex(command_name) then
+return "Unknown command: "+command_name
+end if
+command=MiniClick.commands[command_name]
+help_text=command_name+": "+command.description+"\n\nArguments:\n"
+for arg in command.arguments
+help_text=help_text+"  "+arg.name+": "+arg.description+"\n"
+end for
+help_text=help_text+"\nOptions:\n"
+for option_name in command.options.indexes
+if option_name.len==1 then continue
+// Skip short options
+option=command.options[option_name]
+help_text=help_text+"  --"+option.name
+if option.short_name!=null then
+help_text=help_text+" (-"+option.short_name+")"
+end if
+help_text=help_text+": "+option.description
+if option.default!=null then
+help_text=help_text+" (default: "+option.default+")"
+end if
+help_text=help_text+"\n"
+end for
+end if
+return help_text
+end function
+// Running Commands
+MiniClick.run=function(args)
+if args.len==0 or args[0]=="help" then
+print(MiniClick.generate_help)
+return 
+end if
+command_name=args[0]
+if not MiniClick.commands.hasIndex(command_name) then
+print("Unknown command: "+command_name)
+return 
+end if
+command=MiniClick.commands[command_name]
+if args.len>1 and args[1]=="--help" then
+print(MiniClick.generate_help(command_name))
+return 
+end if
+parsed_args=MiniClick.parse_args(command,args[1:])
+if parsed_args==null then return 
+if command["func"]==null then
+print("Error: No function defined for command '"+command_name+"'")
+return 
+end if
+result=command.func(parsed_args)
+if result!=null then
+return result
+end if
 end function
 ////////////////////////////////////////////////////
 // Core classes
 ////////////////////////////////////////////////////
 // Uncomment to enable unit tests
-TestFramework={}
-TestFramework.tests=[]
-TestFramework.failures=[]
-TestFramework.assert=function(condition,message)
-if not condition then
-self.failures.push(message)
+//#include testing/test_harness.src;
+StateManager={}
+StateManager.classID="StateManager"
+StateManager.focused_object={"file":null,"computer":null,"shell":null}
+// The object currently being interacted with
+StateManager.home_shell=get_shell
+StateManager.set_object=function(object)
+type=typeof(object)
+if type=="shell" then
+self.focused_object["file"]=object.host_computer.File("/")
+self.focused_object["computer"]=object.host_computer
+self.focused_object["shell"]=object
+return 
 end if
-end function
-TestFramework.assert_equal=function(expected,actual,message)
-if expected!=actual then
-self.failures.push(message+" (Expected: "+expected+", Actual: "+actual+")")
+if type=="computer" then
+self.focused_object["file"]=object.File("/")
+self.focused_object["computer"]=object
+return 
 end if
-end function
-TestFramework.add_test=function(name,test_func)
-self.tests.push({"name":name,"func":test_func})
-end function
-TestFramework.run_tests=function()
-total_tests=self.tests.len
-passed_tests=0
-for test in self.tests
-self.failures=[]
-test.func
-if self.failures.len>0 then
-print("Test failed: "+test.name)
-for failure in self.failures
-print("  "+failure)
-end for
-else
-passed_tests=passed_tests+1
-print("Test passed: "+test.name)
+if type=="file" then
+self.focused_object["file"]=object
+return 
 end if
-end for
-exit("Test summary: "+passed_tests+"/"+total_tests+" tests passed")
+return "Invalid object type: "+type
 end function
-FileManager={}
-FileManager.file_object=null
-FileManager.classID="FileManager"
-FileManager.displayID="File"
-FileManager.UID=null
 FileCommands={}
 FileCommands.classID="FileCommands"
-FileCommands.ReadCommand=new Command
-FileCommands.ReadCommand.execute=function(context,args)
-if not context.hasMethod("classID") or context.classID!="FileManager" then
-exit("Invalid context for FileCommands.ReadCommand.execute(). Magpie may have been compromised.")
-end if
-if args.len!=1 then
-return "Usage: cat <filename>"
-end if
-if context.file_object==null then
+FileCommands.read_file=function(args)
+if StateManager.focused_object["file"]==null then
 return "File object not set."
 end if
-filename=args[0]
-file=context.file_object.get_files.first("name",filename)
+filename=args["filename"]
+file=StateManager.focused_object["file"].get_files.first("name",filename)
 if file==null then
 return "File not found: "+filename
 end if
 return file.get_content
 end function
-FileCommands.WriteCommand=new Command
-FileCommands.WriteCommand.execute=function(context,args)
-if not context.hasMethod("classID") or context.classID!="FileManager" then
-exit("Invalid context for FileCommands.WriteCommand.execute(). Magpie may have been compromised.")
-end if
-if args.len<2 then
-return "Usage: write <filename> <...content>"
-end if
-if context.file_object==null then
+FileCommands.write_file=function(args)
+if StateManager.focused_object["file"]==null then
 return "File object not set."
 end if
-filename=args[0]
-content=args[1:].join(" ")
-file=context.file_object.get_files.first("name",filename)
+filename=args["filename"]
+content=args["content"].join(" ")
+file=StateManager.focused_object["file"].get_files.first("name",filename)
 if file==null then
 return "File not found: "+filename
 end if
@@ -319,49 +361,35 @@ return "File written: "+filename
 end if
 return "Error writing file: "+result
 end function
-FileCommands.ListCommand=new Command
-FileCommands.ListCommand.execute=function(context,args)
-if not context.hasMethod("classID") or context.classID!="FileManager" then
-exit("Invalid context for FileCommands.ListCommand.execute(). Magpie may have been compromised.")
-end if
-if args.len!=0 then
-return "Usage: ls"
-end if
-if context.file_object==null then
+FileCommands.list_files=function(args)
+if StateManager.focused_object["file"]==null then
 return "File object not set."
 end if
-if context.file_object.is_folder==false then
+if StateManager.focused_object["file"].is_folder==false then
 return "File is not a folder."
 end if
-folders=context.file_object.get_folders
+folders=StateManager.focused_object["file"].get_folders
 if folders==null then
 return "cwd has been deleted. Good luck!"
 end if
-files=context.file_object.get_files
+files=StateManager.focused_object["file"].get_files
 if files==null then
 return "cwd has been deleted. Good luck!"
 end if
 objects=folders+files
-objects.insert(0,context.file_object)
+objects.insert(0,StateManager.focused_object["file"])
 result=""
 for obj in objects
 result=result+obj.permissions+" "+obj.owner+" "+obj.group+" "+obj.size+" "+obj.path+char(10)
 end for
-return result
+return format_columns(result)
 end function
-FileCommands.ChDirCommand=new Command
-FileCommands.ChDirCommand.execute=function(context,args)
-if not context.hasMethod("classID") or context.classID!="FileManager" then
-exit("Invalid context for FileCommands.ChDirCommand.execute(). Magpie may have been compromised.")
-end if
-if args.len!=1 then
-return "Usage: cd <path>"
-end if
-if context.file_object==null then
+FileCommands.change_dir=function(args)
+if StateManager.focused_object["file"]==null then
 return "File object not set."
 end if
-path=args[0].trim.split("/")
-temp_file=context.file_object
+path=args["path"].trim.split("/")
+temp_file=StateManager.focused_object["file"]
 if path[0]=="" then
 while temp_file.parent!=null
 temp_file=temp_file.parent
@@ -382,80 +410,291 @@ return "Folder not found: "+step
 end if
 end if
 end for
-context.file_object=temp_file
+StateManager.focused_object["file"]=temp_file
 end function
-FileInvoker={}
-FileInvoker.classID="FileInvoker"
-FileInvoker.file_manager=null
-FileInvoker.commands={}
-FileInvoker.commands["cat"]=new FileCommands.ReadCommand
-FileInvoker.commands["write"]=new FileCommands.WriteCommand
-FileInvoker.commands["ls"]=new FileCommands.ListCommand
-FileInvoker.commands["cd"]=new FileCommands.ChDirCommand
-FileInvoker.execute=function(command,args)
-if not self.commands.hasIndex(command) then
-return "Invalid command: "+command
+FileCommands.delete_file=function(args)
+if StateManager.focused_object["file"]==null then
+return "File object not set."
 end if
-return self.commands[command].execute(self.file_manager,args)
+filename=args["filename"]
+file=StateManager.focused_object["file"].get_files.first("name",filename)
+if file==null then
+return "File not found: "+filename
+end if
+result=file.delete
+if result!="" then
+return "Error deleting file: "+result
+end if
+return "File deleted: "+filename
 end function
+FileCommands.change_perms=function(args)
+if StateManager.focused_object["file"]==null then
+return "File object not set."
+end if
+filename=args["filename"]
+permissions=args["permissions"]
+recursive=args["recursive"]
+if typeof(permissions.to_int)!="number" then
+return "Invalid permissions: "+permissions
+end if
+if filename=="." then
+file=StateManager.focused_object["file"]
+else
+file=StateManager.focused_object["file"].get_files.first("name",filename)
+end if
+if file==null then
+return "File not found: "+filename
+end if
+// First, change all permissions to 000.
+result=file.chmod("u-rwx",recursive)
+if result!="" then return "Error changing permissions: "+result
+file.chmod("g-rwx",recursive)
+file.chmod("o-rwx",recursive)
+// Then, convert octal to rwx.
+user_octal=permissions[0].to_int
+group_octal=permissions[1].to_int
+other_octal=permissions[2].to_int
+// Ternary operators don't exist in this language, so we have to do it the long way.
+user_perms="u+"
+if bitAnd(user_octal,4) then user_perms=user_perms+"r"
+if bitAnd(user_octal,2) then user_perms=user_perms+"w"
+if bitAnd(user_octal,1) then user_perms=user_perms+"x"
+group_perms="g+"
+if bitAnd(group_octal,4) then group_perms=group_perms+"r"
+if bitAnd(group_octal,2) then group_perms=group_perms+"w"
+if bitAnd(group_octal,1) then group_perms=group_perms+"x"
+other_perms="o+"
+if bitAnd(other_octal,4) then other_perms=other_perms+"r"
+if bitAnd(other_octal,2) then other_perms=other_perms+"w"
+if bitAnd(other_octal,1) then other_perms=other_perms+"x"
+// Finally, apply the new permissions.
+file.chmod(user_perms,recursive)
+file.chmod(group_perms,recursive)
+file.chmod(other_perms,recursive)
+return "Permissions changed."
+end function
+FileCommands.change_group=function(args)
+if StateManager.focused_object["file"]==null then
+return "File object not set."
+end if
+filename=args["filename"]
+group=args["group"]
+recursive=args["recursive"]
+file=StateManager.focused_object["file"].get_files.first("name",filename)
+if file==null then
+return "File not found: "+filename
+end if
+result=file.set_group(group,recursive)
+if result!="" then
+return "Error changing group: "+result
+end if
+end function
+FileCommands.change_owner=function(args)
+if StateManager.focused_object["file"]==null then
+return "File object not set."
+end if
+filename=args["filename"]
+owner=args["owner"]
+recursive=args["recursive"]
+file=StateManager.focused_object["file"].get_files.first("name",filename)
+if file==null then
+return "File not found: "+filename
+end if
+result=file.set_owner(owner,recursive)
+if result!="" then
+return "Error changing owner: "+result
+end if
+end function
+FileCommands.copy_file=function(args)
+if StateManager.focused_object["file"]==null then
+return "File object not set."
+end if
+filename=args["filename"]
+destination=args["destination"]
+newname=args["newname"]
+file=StateManager.focused_object["file"].get_files.first("name",filename)
+if file==null then
+return "File not found: "+filename
+end if
+result=file.copy(destination,newname)
+if typeof(result)=="string" then
+return "Error copying file: "+result
+end if
+end function
+FileCommands.move_file=function(args)
+if StateManager.focused_object["file"]==null then
+return "File object not set."
+end if
+filename=args["filename"]
+destination=args["destination"]
+newname=args["newname"]
+file=StateManager.focused_object["file"].get_files.first("name",filename)
+if file==null then
+return "File not found: "+filename
+end if
+result=file.move(destination,newname)
+if typeof(result)=="string" then
+return "Error moving file: "+result
+end if
+end function
+MiniClick.createCommand("cat","Read the contents of a file").addArgument("filename","The name of the file to read").setFunction(FileCommands["read_file"]).build
+MiniClick.createCommand("write","Write to a file").addArgument("filename","The name of the file to write to").addArgument("content","The content to write",true).setFunction(FileCommands["write_file"]).build
+MiniClick.createCommand("ls","List files in the current directory").setFunction(FileCommands["list_files"]).build
+MiniClick.createCommand("cd","Change the current directory").addArgument("path","The path to change to").setFunction(FileCommands["change_dir"]).build
+MiniClick.createCommand("rm","Delete a file").addArgument("filename","The name of the file to delete").setFunction(FileCommands["delete_file"]).build
+MiniClick.createCommand("chmod","Change file permissions").addArgument("filename","The name of the file to change permissions for").addArgument("permissions","The new permissions").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_perms"]).build
+MiniClick.createCommand("chgrp","Change file group").addArgument("filename","The name of the file to change group for").addArgument("group","The new group").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_group"]).build
+MiniClick.createCommand("chown","Change file owner").addArgument("filename","The name of the file to change owner for").addArgument("owner","The new owner").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_owner"]).build
+MiniClick.createCommand("cp","Copy a file").addArgument("filename","The name of the file to copy").addArgument("destination","The destination folder").addArgument("newname","The new name of the file").setFunction(FileCommands["copy_file"]).build
+MiniClick.createCommand("mv","Move a file").addArgument("filename","The name of the file to move").addArgument("destination","The destination folder").addArgument("newname","The new name of the file").setFunction(FileCommands["move_file"]).build
+////////////////////////////////////////////////////
+ComputerCommands={}
+ComputerCommands.classID="ComputerCommands"
+ComputerCommands.view_procs=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+return format_columns(StateManager.focused_object["computer"].show_procs)
+end function
+ComputerCommands.kill_proc=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+pid=args["pid"].to_int
+if typeof(pid)!="number" then return "Invalid PID: "+args["pid"]
+return StateManager.focused_object["computer"].close_program(pid)
+end function
+ComputerCommands.add_user=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+username=args["username"]
+password=args["password"]
+return StateManager.focused_object["computer"].create_user(username,password)
+end function
+ComputerCommands.remove_user=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+username=args["username"]
+remove_home=args["remove_home"]
+return StateManager.focused_object["computer"].delete_user(username,remove_home)
+end function
+ComputerCommands.add_group=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+username=args["username"]
+groupname=args["groupname"]
+return StateManager.focused_object["computer"].create_group(username,groupname)
+end function
+ComputerCommands.remove_group=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+username=args["username"]
+groupname=args["groupname"]
+return StateManager.focused_object["computer"].delete_group(username,groupname)
+end function
+ComputerCommands.create_file=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+path=args["path"]
+filename=args["filename"]
+return StateManager.focused_object["computer"].touch(path,filename)
+end function
+ComputerCommands.create_folder=function(args)
+if StateManager.focused_object["computer"]==null then
+return "Computer object not set."
+end if
+path=args["path"]
+foldername=args["foldername"]
+return StateManager.focused_object["computer"].create_folder(path,foldername)
+end function
+MiniClick.createCommand("ps","View running processes").setFunction(ComputerCommands["view_procs"]).build
+MiniClick.createCommand("kill","Kill a running process").addArgument("pid","The PID of the process to kill").setFunction(ComputerCommands["kill_proc"]).build
+MiniClick.createCommand("adduser","Add a new user").addArgument("username","The username of the new user").addArgument("password","The password of the new user").setFunction(ComputerCommands["add_user"]).build
+MiniClick.createCommand("deluser","Delete a user").addArgument("username","The user to delete").addOption("remove_home","Remove the user's home directory",false,"r").setFunction(ComputerCommands["remove_user"]).build
+MiniClick.createCommand("addgroup","Add a new group").addArgument("username","The user to add to the group").addArgument("groupname","The name of the new group").setFunction(ComputerCommands["add_group"]).build
+MiniClick.createCommand("delgroup","Delete a group").addArgument("username","The user to remove from the group").addArgument("groupname","The name of the group to delete").setFunction(ComputerCommands["remove_group"]).build
+MiniClick.createCommand("touch","Create a new file").addArgument("path","The path to create the file in").addArgument("filename","The name of the new file").setFunction(ComputerCommands["create_file"]).build
+MiniClick.createCommand("mkdir","Create a new folder").addArgument("path","The path to create the folder in").addArgument("foldername","The name of the new folder").setFunction(ComputerCommands["create_folder"]).build
+////////////////////////////////////////////////////
+ShellCommands={}
+ShellCommands.classID="ShellCommands"
+ShellCommands.drop_shell=function(args)
+if StateManager.focused_object["shell"]==null then
+return "Shell object not set."
+end if
+confirm=user_input("Are you absolutely sure you want to drop to a shell? (y/n): ")
+if confirm=="y" then
+print("Dropping to shell...")
+return start_terminal(StateManager.focused_object["shell"])
+end if
+end function
+ShellCommands.build_file=function(args)
+if StateManager.focused_object["shell"]==null then
+return "Shell object not set."
+end if
+source_path=args["source_path"]
+destination_path=args["destination_path"]
+can_import=args["can_import"]
+return build(StateManager.focused_object["shell"],source_path,destination_path,can_import)
+end function
+ShellCommands.get_file=function(args)
+if StateManager.focused_object["shell"]==null then
+return "Shell object not set."
+end if
+source_path=args["source_path"]
+destination_path=args["destination_path"]
+to_relative=args["to_relative"]
+if to_relative then
+return scp(StateManager.focused_object["shell"],source_path,destination_path,get_shell)
+end if
+return scp(StateManager.focused_object["shell"],source_path,destination_path,StateManager.home_shell)
+end function
+ShellCommands.put_file=function(args)
+if StateManager.focused_object["shell"]==null then
+return "Shell object not set."
+end if
+source_path=args["source_path"]
+destination_path=args["destination_path"]
+from_relative=args["from_relative"]
+if from_relative then
+return scp(get_shell,destination_path,source_path,StateManager.focused_object["shell"])
+end if
+return scp(StateManager.home_shell,destination_path,source_path,StateManager.focused_object["shell"])
+end function
+ShellCommands.run_command=function(args)
+if StateManager.focused_object["shell"]==null then
+return "Shell object not set."
+end if
+program=args["program"]
+params=args["params"].join(" ")
+confirm=user_input("Are you sure you want to run an external program? You will lose your current context. (y/n): ")
+if confirm=="y" then
+return launch(StateManager.focused_object["shell"],program,params)
+end if
+end function
+MiniClick.createCommand("shell","Drop to a shell").setFunction(ShellCommands["drop_shell"]).build
+MiniClick.createCommand("build","Build a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("can_import","Allow the file to be imported",false,"i").setFunction(ShellCommands["build_file"]).build
+MiniClick.createCommand("get","Get a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("to_relative","Put the file in your current relative shell",false,"r").setFunction(ShellCommands["get_file"]).build
+MiniClick.createCommand("put","Put a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("from_relative","Get the file from your current relative shell",false,"r").setFunction(ShellCommands["put_file"]).build
+MiniClick.createCommand("launch","Run an external program").addArgument("program","The program to run").addArgument("params","The parameters to pass to the program",true).setFunction(ShellCommands["run_command"]).build
 ////////////////////////////////////////////////////
 // Basic testing usage
 ////////////////////////////////////////////////////
 // Uncomment to enable File tests
-// Requres test_harness.src. Don't forget to include it in the test script.
-TestMethods={}
-// FileManager tests
-TestMethods.tmp=function()
-fm=new FileManager
-TestFramework.assert(fm!=null,"FileManager should not be null")
-TestFramework.assert_equal("FileManager",fm.classID,"FileManager should have correct classID")
-TestFramework.assert_equal("File",fm.displayID,"FileManager should have correct displayID")
-end function
-TestFramework.add_test("FileManager Creation",@TestMethods.tmp)
-TestMethods.tmp1=function()
-fm=new FileManager
-fm.file_object=get_shell.host_computer.File("test.txt")
-TestFramework.assert(fm.file_object!=null,"File object should be set")
-TestFramework.assert_equal("test.txt",fm.file_object.name,"File name should match")
-end function
-TestFramework.add_test("FileManager File Object Update",@TestMethods.tmp1)
-TestMethods.tmp2=function()
-fm=new FileManager
-fm.file_object=get_shell.host_computer.File(".")
-FileInvoker.file_manager=fm
-content=FileInvoker.execute("cat",["test.txt"])
-TestFramework.assert_equal("Test content",content,"File content should match")
-end function
-TestFramework.add_test("FileManager Read File",@TestMethods.tmp2)
-TestMethods.tmp3=function()
-fm=new FileManager
-fm.file_object=get_shell.host_computer.File(".")
-FileInvoker.file_manager=fm
-result=FileInvoker.execute("write",["test.txt","New","content"])
-TestFramework.assert_equal("File written: test.txt",result,"Write operation should succeed")
-TestFramework.assert_equal("New content",FileInvoker.execute("cat",["test.txt"]),"File content should be updated")
-end function
-TestFramework.add_test("FileManager Write File",@TestMethods.tmp3)
-TestMethods.tmp4=function()
-fm=new FileManager
-fm.file_object=get_shell.host_computer.File(".")
-FileInvoker.file_manager=fm
-result=FileInvoker.execute("cat",["nonexistent.txt"])
-TestFramework.assert_equal(result,"File not found: nonexistent.txt","Should return error for nonexistent file")
-end function
-TestFramework.add_test("FileManager File Not Found",@TestMethods.tmp4)
-// Run the tests
-TestFramework.run_tests
-test_file=new FileManager
-test_file.file_object=get_shell.host_computer.File("/etc")
-FileInvoker.file_manager=test_file
+//#include testing/file_tests.src;
+StateManager.set_object(StateManager.home_shell)
 while true
-command=user_input("# ")
+command=user_input(StateManager.focused_object["file"].path+"# ")
 if command=="exit" then
 break
 end if
 command=command.trim.split(" ")
-result=FileInvoker.execute(command[0],command[1:])
+result=MiniClick.run(command)
 if result!=null then
 print(result)
 end if
