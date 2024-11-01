@@ -374,6 +374,7 @@ FileCommands.read_file = function(args)
         return "File object not set."
     end if
     filename = args["filename"]
+
     file = StateManager.focused_object["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
@@ -387,6 +388,7 @@ FileCommands.write_file = function(args)
     end if
     filename = args["filename"]
     content = args["content"].join(" ")
+
     file = StateManager.focused_object["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
@@ -430,6 +432,7 @@ FileCommands.change_dir = function(args)
         return "File object not set."
     end if
     path = args["path"].trim.split("/")
+
     temp_file = StateManager.focused_object["file"]
     if path[0] == "" then
         while temp_file.parent != null
@@ -462,6 +465,7 @@ FileCommands.delete_file = function(args)
         return "File object not set."
     end if
     filename = args["filename"]
+
     file = StateManager.focused_object["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
@@ -479,7 +483,7 @@ FileCommands.change_perms = function(args)
     end if
     filename = args["filename"]
     permissions = args["permissions"]
-    recursive = args["--recursive"]
+    recursive = args["recursive"]
 
     if typeof(permissions.to_int) != "number" then
         return "Invalid permissions: " + permissions
@@ -536,7 +540,7 @@ FileCommands.change_group = function(args)
     end if
     filename = args["filename"]
     group = args["group"]
-    recursive = args["--recursive"]
+    recursive = args["recursive"]
 
     file = StateManager.focused_object["file"].get_files.first("name", filename)
     if file == null then
@@ -555,7 +559,7 @@ FileCommands.change_owner = function(args)
     end if
     filename = args["filename"]
     owner = args["owner"]
-    recursive = args["--recursive"]
+    recursive = args["recursive"]
 
     file = StateManager.focused_object["file"].get_files.first("name", filename)
     if file == null then
