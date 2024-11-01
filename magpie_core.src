@@ -153,17 +153,12 @@ CommandBuilder = function(name, description)
     obj.description = description
     obj.options = {}
     obj.arguments = []
-    obj.func = null
-
-    obj.addOption = function(name, description, default_value = null, short_name = null)
-        if self.options.hasIndex(name) then
-            print("Warning: Overwriting existing option '" + name + "' in command '" + self.name + "'")
-        end if
-        // Store both long and short option (if provided)
+    
+    obj.addOption = function(name, description, default = false, short_name = null)
         option_data = {
             "name": name,
             "description": description,
-            "default": default_value,
+            "default": default,
             "short_name": short_name,
         }
         self.options[name] = option_data
@@ -173,10 +168,11 @@ CommandBuilder = function(name, description)
         return self // Enable method chaining
     end function
 
-    obj.addArgument = function(name, description)
+    obj.addArgument = function(name, description, is_rest = false)
         self.arguments.push({
             "name": name,
             "description": description,
+            "is_rest": is_rest,
         })
         return self
     end function
@@ -212,57 +208,63 @@ MiniClick.parse_args = function(command, args)
     parsed = {}
     arg_index = 0
     i = 0
-    while i < args.len
-        arg = args[i]
-        if arg[:2] == "--" then
-            // Long option
-            option_name = arg
-        else if arg[:1] == "-" and arg.len == 2 then
-            // Short option (single character)
-            if not command.options.hasIndex(arg) then
-                print("Unknown option: " + arg)
-                return null
-            end if
-            option_name = command.options[arg].name
-        else
-            if arg_index >= command.arguments.len then
-                print("Too many arguments")
-                return null
-            end if
-            arg_name = command.arguments[arg_index].name
-            parsed[arg_name] = arg
-            arg_index = arg_index + 1
-            i = i + 1
-            continue
-        end if
 
+    handle_option = function(option_name, is_short)
         if not command.options.hasIndex(option_name) then
             print("Unknown option: " + option_name)
-            return null
+            return false
         end if
         option = command.options[option_name]
         if typeof(option.default) == "number" and option.default == false then
             parsed[option_name] = true
         else
             if i + 1 >= args.len then
-                print("Option " + arg + " requires a value")
-                return null
+                print("Option " + (is_short and "-" or "--") + option_name + " requires a value")
+                return false
             end if
             i = i + 1
             parsed[option_name] = args[i]
         end if
+        return true
+    end function
+
+    while i < args.len
+        arg = args[i]
+        if arg[:2] == "--" then
+            if not handle_option(arg[2:], false) then return null
+        else if arg[:1] == "-" then
+            short_name = arg[1:]
+            if not command.options.hasIndex(short_name) then
+                print("Unknown option: " + short_name)
+                return null
+            end if
+            long_name = command.options[short_name].name
+            if not handle_option(long_name, true) then return null
+        else
+            if arg_index >= command.arguments.len then
+                print("Too many arguments")
+                return null
+            end if
+            arg_def = command.arguments[arg_index]
+            arg_name = arg_def.name
+            if arg_def.is_rest then
+                parsed[arg_name] = args[i:]
+                arg_index = arg_index + 1
+                break
+            else
+                parsed[arg_name] = arg
+                arg_index = arg_index + 1
+            end if
+        end if
         i = i + 1
     end while
 
-    // Set default values for options not provided
     for option_name in command.options.indexes
-        option = command.options[option_name]
         if not parsed.hasIndex(option_name) then
-            parsed[option_name] = option.default
+            parsed[option_name] = command.options[option_name].default
         end if
     end for
 
-    // Check if all required arguments are provided
     if arg_index < command.arguments.len then
         print("Not enough arguments")
         return null
@@ -353,14 +355,21 @@ StateManager = {}
 
 StateManager.focused_object = {"file": null, "computer": null, "shell": null} // The object currently being interacted with
 
+StateManager.set_object = function(object)
+    type = typeof(object)
+
+    self.focused_object["file"] = (type == "file" and object) or (type == "computer" and object.File("/")) or (type == "shell" and object.host_computer.File("/") or null)
+    self.focused_object["computer"] = (type == "computer" and object) or (type == "shell" and object.host_computer or null)
+    self.focused_object["shell"] = (type == "shell" and object) or null
+
+    if self.focused_object["file"] == null then return "Invalid object type: " + type
+end function
+
 FileCommands = {}
 
 FileCommands.classID = "FileCommands"
 
 FileCommands.read_file = function(args)
-    if args.len != 1 then
-        return "Usage: cat <filename>"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -373,14 +382,11 @@ FileCommands.read_file = function(args)
 end function
 
 FileCommands.write_file = function(args)
-    if args.len < 2 then
-        return "Usage: write <filename> <...content>"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
-    content = args["content"]
+    content = args["content"].join(" ")
     file = StateManager.focused_object["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
@@ -393,9 +399,6 @@ FileCommands.write_file = function(args)
 end function
 
 FileCommands.list_files = function(args)
-    if args.len != 0 then
-        return "Usage: ls"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -423,9 +426,6 @@ FileCommands.list_files = function(args)
 end function
 
 FileCommands.change_dir = function(args)
-    if args.len != 1 then
-        return "Usage: cd <path>"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -458,9 +458,6 @@ FileCommands.change_dir = function(args)
 end function
 
 FileCommands.delete_file = function(args)
-    if args.len != 1 then
-        return "Usage: rm <filename>"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -477,9 +474,6 @@ FileCommands.delete_file = function(args)
 end function
 
 FileCommands.change_perms = function(args)
-    if args.len < 2 then
-        return "Usage: chmod <filename> <permissions> [--recursive]"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -537,9 +531,6 @@ FileCommands.change_perms = function(args)
 end function
 
 FileCommands.change_group = function(args)
-    if args.len != 2 then
-        return "Usage: chgrp <filename> <group> [--recursive]"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -559,9 +550,6 @@ FileCommands.change_group = function(args)
 end function
 
 FileCommands.change_owner = function(args)
-    if args.len != 2 then
-        return "Usage: chown <filename> <owner> [--recursive]"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -581,9 +569,6 @@ FileCommands.change_owner = function(args)
 end function
 
 FileCommands.copy_file = function(args)
-    if args.len != 3 then
-        return "Usage: cp <filename> <destination> <newname>"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -603,9 +588,6 @@ FileCommands.copy_file = function(args)
 end function
 
 FileCommands.move_file = function(args)
-    if args.len != 3 then
-        return "Usage: mv <filename> <destination> <newname>"
-    end if
     if StateManager.focused_object["file"] == null then
         return "File object not set."
     end if
@@ -625,7 +607,7 @@ FileCommands.move_file = function(args)
 end function
 
 MiniClick.createCommand("cat", "Read the contents of a file").addArgument("filename", "The name of the file to read").setFunction(FileCommands["read_file"]).build()
-MiniClick.createCommand("write", "Write to a file").addArgument("filename", "The name of the file to write to").addArgument("content", "The content to write").setFunction(FileCommands["write_file"]).build()
+MiniClick.createCommand("write", "Write to a file").addArgument("filename", "The name of the file to write to").addArgument("content", "The content to write", true).setFunction(FileCommands["write_file"]).build()
 MiniClick.createCommand("ls", "List files in the current directory").setFunction(FileCommands["list_files"]).build()
 MiniClick.createCommand("cd", "Change the current directory").addArgument("path", "The path to change to").setFunction(FileCommands["change_dir"]).build()
 MiniClick.createCommand("rm", "Delete a file").addArgument("filename", "The name of the file to delete").setFunction(FileCommands["delete_file"]).build()
