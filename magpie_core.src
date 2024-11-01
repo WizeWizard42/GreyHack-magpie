@@ -419,7 +419,6 @@ UtilityCommands.set_alias = function(args)
     end if
 
     MiniClick.commands[alias] = MiniClick.commands[command]
-    Miniclick.commands[alias].is_alias = true
 end function
 
 UtilityCommands.unset_alias = function(args)
