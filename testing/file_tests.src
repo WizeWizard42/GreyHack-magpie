@@ -1,0 +1,50 @@
+// Requres test_harness.src. Don't forget to include it in the test script.
+TestMethods = {}
+
+// FileManager tests
+TestMethods.tmp = function
+    fm = new FileManager
+    TestFramework.assert(fm != null, "FileManager should not be null")
+    TestFramework.assert_equal("FileManager", fm.classID, "FileManager should have correct classID")
+    TestFramework.assert_equal("File", fm.displayID, "FileManager should have correct displayID")
+end function
+TestFramework.add_test("FileManager Creation", @TestMethods.tmp)
+
+TestMethods.tmp1 = function
+    fm = new FileManager
+    fm.file_object = get_shell.host_computer.File("test.txt")
+    TestFramework.assert(fm.file_object != null, "File object should be set")
+    TestFramework.assert_equal("test.txt", fm.file_object.name, "File name should match")
+end function
+TestFramework.add_test("FileManager File Object Update", @TestMethods.tmp1)
+
+TestMethods.tmp2 = function
+    fm = new FileManager
+    fm.file_object = get_shell.host_computer.File(".")
+    FileInvoker.file_manager = fm
+    content = FileInvoker.execute("cat", ["test.txt"])
+    TestFramework.assert_equal("Test content", content, "File content should match")
+end function
+TestFramework.add_test("FileManager Read File", @TestMethods.tmp2)
+
+TestMethods.tmp3 = function
+    fm = new FileManager
+    fm.file_object = get_shell.host_computer.File(".")
+    FileInvoker.file_manager = fm
+    result = FileInvoker.execute("write", ["test.txt", "New", "content"])
+    TestFramework.assert_equal("File written: test.txt", result, "Write operation should succeed")
+    TestFramework.assert_equal("New content", FileInvoker.execute("cat", ["test.txt"]), "File content should be updated")
+end function
+TestFramework.add_test("FileManager Write File", @TestMethods.tmp3)
+
+TestMethods.tmp4 = function
+    fm = new FileManager
+    fm.file_object = get_shell.host_computer.File(".")
+    FileInvoker.file_manager = fm
+    result = FileInvoker.execute("cat", ["nonexistent.txt"])
+    TestFramework.assert_equal(result, "File not found: nonexistent.txt", "Should return error for nonexistent file")
+end function
+TestFramework.add_test("FileManager File Not Found", @TestMethods.tmp4)
+
+// Run the tests
+TestFramework.run_tests

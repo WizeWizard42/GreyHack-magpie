@@ -1,0 +1,462 @@
+// Made by Merlin Newcomb in 2024
+////////////////////////////////////////////////////
+// Abstract classes and type extensions
+////////////////////////////////////////////////////
+//LinQ lib functionality for greyscript
+//By MachaCeleste 20240205
+map.first=function(key,value)
+for each in self.indexes
+if self[each][key]==value then
+return self[each]
+end if
+end for
+end function
+map.where=function(key,value)
+ret={}
+for each in self.indexes
+if self[each][key]==value then
+ret.push(self[each])
+end if
+end for
+return ret
+end function
+map.wherenot=function(key,value)
+ret={}
+for each in self.indexes
+if self[each][key]!=value then
+ret.push(self[each])
+end if
+end for
+return ret
+end function
+map.hasMethod=function(method)
+ref=self
+if ref.hasIndex(method) then
+return true
+end if
+while ref.hasIndex("__isa")
+ref=ref["__isa"]
+if ref.hasIndex(method) then
+return true
+end if
+end while
+return false
+end function
+list.first=function(key,value)
+for each in self
+if typeof(each)=="string" then
+if key=="is" and each==value then
+return each
+end if
+if key=="contains" and each.is_match(value) then
+return each
+end if
+if key=="len" and each.len==value then
+return each
+end if
+else if typeof(each)=="file" then
+if key=="name" and each.name==value then
+return each
+end if
+if key=="namehas" and each.name.is_match(value) then
+ret.push(each)
+end if
+if key=="path" and each.path==value then
+return each
+end if
+if key=="permissions" and each.permissions==value then
+return each
+end if
+if key=="has_permission" then
+v=value.values
+c=""
+for p in v
+if each.has_permission(p) then
+c=c+p
+end if
+end for
+if c==value then
+return each
+end if
+end if
+if key=="size" and each.size==value then
+return each
+end if
+else if typeof(each)=="port" then
+if key=="port_number" and each.port_number==value then
+return each
+end if
+if key=="is_closed" and each.is_closed==value then
+return each
+end if
+if key=="get_lan_ip" and each.get_lan_ip==value then
+return each
+end if
+else if typeof(each)=="map" then
+if each[key]==value then
+return each
+end if
+end if
+end for
+end function
+list.where=function(key,value)
+ret=[]
+for each in self
+if typeof(each)=="string" then
+if key=="is" and each==value then
+ret.push(each)
+end if
+if key=="contains" and each.is_match(value) then
+ret.push(each)
+end if
+if key=="len" and each.len==value then
+ret.push(each)
+end if
+else if typeof(each)=="file" then
+if key=="name" and each.name==value then
+ret.push(each)
+end if
+if key=="namehas" and each.name.is_match(value) then
+ret.push(each)
+end if
+if key=="path" and each.path==value then
+ret.push(each)
+end if
+if key=="permissions" and each.permissions==value then
+ret.push(each)
+end if
+if key=="has_permission" then
+v=value.values
+c=""
+for p in v
+if each.has_permission(p) then
+c=c+p
+end if
+end for
+if c==value then
+ret.push(each)
+end if
+end if
+if key=="size" and each.size==value then
+ret.push(each)
+end if
+else if typeof(each)=="port" then
+if key=="port_number" and each.port_number==value then
+ret.push(each)
+end if
+if key=="is_closed" and each.is_closed==value then
+ret.push(each)
+end if
+if key=="get_lan_ip" and each.get_lan_ip==value then
+ret.push(each)
+end if
+else if typeof(each)=="map" then
+if each[key]==value then
+ret.push(each)
+end if
+end if
+end for
+return ret
+end function
+list.wherenot=function(key,value)
+ret=[]
+for each in self
+if typeof(each)=="string" then
+if key=="is" and each!=value then
+ret.push(each)
+end if
+if key=="contains" and not each.is_match(value) then
+ret.push(each)
+end if
+if key=="len" and each.len!=value then
+ret.push(each)
+end if
+else if typeof(each)=="file" then
+if key=="name" and each.name!=value then
+ret.push(each)
+end if
+if key=="namehas" and each.name.is_match(value) then
+ret.push(each)
+end if
+if key=="path" and each.path!=value then
+ret.push(each)
+end if
+if key=="permissions" and each.permissions!=value then
+ret.push(each)
+end if
+if key=="has_permission" then
+v=value.values
+c=""
+for p in v
+if each.has_permission(p) then
+c=c+p
+end if
+end for
+if c!=value then
+ret.push(each)
+end if
+end if
+if key=="size" and each.size!=value then
+ret.push(each)
+end if
+else if typeof(each)=="port" then
+if key=="port_number" and each.port_number!=value then
+ret.push(each)
+end if
+if key=="is_closed" and each.is_closed!=value then
+ret.push(each)
+end if
+if key=="get_lan_ip" and each.get_lan_ip!=value then
+ret.push(each)
+end if
+else if typeof(each)=="map" then
+if each[key]!=value then
+ret.push(each)
+end if
+end if
+end for
+return ret
+end function
+string.regex_escape=function()
+result=self
+for x in "+*?^$.[]{}()|/"
+result=result.replace("\"+x,"\"+x)
+end for
+return result
+end function
+//Simple string color lib functionality for greyscript
+// By MachaCeleste 20240305
+string.color=function(hexc)
+return "<color="+hexc+">"+self+"</color>"
+end function
+Command={}
+Command.execute=function(context,args)
+exit("Abstract method Command.execute() must be overridden.")
+end function
+////////////////////////////////////////////////////
+// Core classes
+////////////////////////////////////////////////////
+// Uncomment to enable unit tests
+TestFramework={}
+TestFramework.tests=[]
+TestFramework.failures=[]
+TestFramework.assert=function(condition,message)
+if not condition then
+self.failures.push(message)
+end if
+end function
+TestFramework.assert_equal=function(expected,actual,message)
+if expected!=actual then
+self.failures.push(message+" (Expected: "+expected+", Actual: "+actual+")")
+end if
+end function
+TestFramework.add_test=function(name,test_func)
+self.tests.push({"name":name,"func":test_func})
+end function
+TestFramework.run_tests=function()
+total_tests=self.tests.len
+passed_tests=0
+for test in self.tests
+self.failures=[]
+test.func
+if self.failures.len>0 then
+print("Test failed: "+test.name)
+for failure in self.failures
+print("  "+failure)
+end for
+else
+passed_tests=passed_tests+1
+print("Test passed: "+test.name)
+end if
+end for
+exit("Test summary: "+passed_tests+"/"+total_tests+" tests passed")
+end function
+FileManager={}
+FileManager.file_object=null
+FileManager.classID="FileManager"
+FileManager.displayID="File"
+FileManager.UID=null
+FileCommands={}
+FileCommands.classID="FileCommands"
+FileCommands.ReadCommand=new Command
+FileCommands.ReadCommand.execute=function(context,args)
+if not context.hasMethod("classID") or context.classID!="FileManager" then
+exit("Invalid context for FileCommands.ReadCommand.execute(). Magpie may have been compromised.")
+end if
+if args.len!=1 then
+return "Usage: cat <filename>"
+end if
+if context.file_object==null then
+return "File object not set."
+end if
+filename=args[0]
+file=context.file_object.get_files.first("name",filename)
+if file==null then
+return "File not found: "+filename
+end if
+return file.get_content
+end function
+FileCommands.WriteCommand=new Command
+FileCommands.WriteCommand.execute=function(context,args)
+if not context.hasMethod("classID") or context.classID!="FileManager" then
+exit("Invalid context for FileCommands.WriteCommand.execute(). Magpie may have been compromised.")
+end if
+if args.len<2 then
+return "Usage: write <filename> <...content>"
+end if
+if context.file_object==null then
+return "File object not set."
+end if
+filename=args[0]
+content=args[1:].join(" ")
+file=context.file_object.get_files.first("name",filename)
+if file==null then
+return "File not found: "+filename
+end if
+result=file.set_content(content)
+if result==true then
+return "File written: "+filename
+end if
+return "Error writing file: "+result
+end function
+FileCommands.ListCommand=new Command
+FileCommands.ListCommand.execute=function(context,args)
+if not context.hasMethod("classID") or context.classID!="FileManager" then
+exit("Invalid context for FileCommands.ListCommand.execute(). Magpie may have been compromised.")
+end if
+if args.len!=0 then
+return "Usage: ls"
+end if
+if context.file_object==null then
+return "File object not set."
+end if
+if context.file_object.is_folder==false then
+return "File is not a folder."
+end if
+folders=context.file_object.get_folders
+if folders==null then
+return "cwd has been deleted. Good luck!"
+end if
+files=context.file_object.get_files
+if files==null then
+return "cwd has been deleted. Good luck!"
+end if
+objects=folders+files
+objects.insert(0,context.file_object)
+result=""
+for obj in objects
+result=result+obj.permissions+" "+obj.owner+" "+obj.group+" "+obj.size+" "+obj.path+char(10)
+end for
+return result
+end function
+FileCommands.ChDirCommand=new Command
+FileCommands.ChDirCommand.execute=function(context,args)
+if not context.hasMethod("classID") or context.classID!="FileManager" then
+exit("Invalid context for FileCommands.ChDirCommand.execute(). Magpie may have been compromised.")
+end if
+if args.len!=1 then
+return "Usage: cd <path>"
+end if
+if context.file_object==null then
+return "File object not set."
+end if
+path=args[0].trim.split("/")
+temp_file=context.file_object
+if path[0]=="" then
+while temp_file.parent!=null
+temp_file=temp_file.parent
+end while
+path=path[1:]
+end if
+for step in path
+if step==".." then
+if temp_file.parent!=null then
+temp_file=temp_file.parent
+end if
+else if step=="." then
+continue
+else
+temp_file=temp_file.get_folders.first("name",step)
+if temp_file==null then
+return "Folder not found: "+step
+end if
+end if
+end for
+context.file_object=temp_file
+end function
+FileInvoker={}
+FileInvoker.classID="FileInvoker"
+FileInvoker.file_manager=null
+FileInvoker.commands={}
+FileInvoker.commands["cat"]=new FileCommands.ReadCommand
+FileInvoker.commands["write"]=new FileCommands.WriteCommand
+FileInvoker.commands["ls"]=new FileCommands.ListCommand
+FileInvoker.commands["cd"]=new FileCommands.ChDirCommand
+FileInvoker.execute=function(command,args)
+if not self.commands.hasIndex(command) then
+return "Invalid command: "+command
+end if
+return self.commands[command].execute(self.file_manager,args)
+end function
+////////////////////////////////////////////////////
+// Basic testing usage
+////////////////////////////////////////////////////
+// Uncomment to enable File tests
+// Requres test_harness.src. Don't forget to include it in the test script.
+TestMethods={}
+// FileManager tests
+TestMethods.tmp=function()
+fm=new FileManager
+TestFramework.assert(fm!=null,"FileManager should not be null")
+TestFramework.assert_equal("FileManager",fm.classID,"FileManager should have correct classID")
+TestFramework.assert_equal("File",fm.displayID,"FileManager should have correct displayID")
+end function
+TestFramework.add_test("FileManager Creation",@TestMethods.tmp)
+TestMethods.tmp1=function()
+fm=new FileManager
+fm.file_object=get_shell.host_computer.File("test.txt")
+TestFramework.assert(fm.file_object!=null,"File object should be set")
+TestFramework.assert_equal("test.txt",fm.file_object.name,"File name should match")
+end function
+TestFramework.add_test("FileManager File Object Update",@TestMethods.tmp1)
+TestMethods.tmp2=function()
+fm=new FileManager
+fm.file_object=get_shell.host_computer.File(".")
+FileInvoker.file_manager=fm
+content=FileInvoker.execute("cat",["test.txt"])
+TestFramework.assert_equal("Test content",content,"File content should match")
+end function
+TestFramework.add_test("FileManager Read File",@TestMethods.tmp2)
+TestMethods.tmp3=function()
+fm=new FileManager
+fm.file_object=get_shell.host_computer.File(".")
+FileInvoker.file_manager=fm
+result=FileInvoker.execute("write",["test.txt","New","content"])
+TestFramework.assert_equal("File written: test.txt",result,"Write operation should succeed")
+TestFramework.assert_equal("New content",FileInvoker.execute("cat",["test.txt"]),"File content should be updated")
+end function
+TestFramework.add_test("FileManager Write File",@TestMethods.tmp3)
+TestMethods.tmp4=function()
+fm=new FileManager
+fm.file_object=get_shell.host_computer.File(".")
+FileInvoker.file_manager=fm
+result=FileInvoker.execute("cat",["nonexistent.txt"])
+TestFramework.assert_equal(result,"File not found: nonexistent.txt","Should return error for nonexistent file")
+end function
+TestFramework.add_test("FileManager File Not Found",@TestMethods.tmp4)
+// Run the tests
+TestFramework.run_tests
+test_file=new FileManager
+test_file.file_object=get_shell.host_computer.File("/etc")
+FileInvoker.file_manager=test_file
+while true
+command=user_input("# ")
+if command=="exit" then
+break
+end if
+command=command.trim.split(" ")
+result=FileInvoker.execute(command[0],command[1:])
+if result!=null then
+print(result)
+end if
+end while

@@ -1,0 +1,38 @@
+TestFramework = {}
+TestFramework.tests = []
+TestFramework.failures = []
+
+TestFramework.assert = function(condition, message)
+    if not condition then
+        self.failures.push(message)
+    end if
+end function
+
+TestFramework.assert_equal = function(expected, actual, message)
+    if expected != actual then
+        self.failures.push(message + " (Expected: " + expected + ", Actual: " + actual + ")")
+    end if
+end function
+
+TestFramework.add_test = function(name, test_func)
+    self.tests.push({"name": name, "func": test_func})
+end function
+
+TestFramework.run_tests = function
+    total_tests = self.tests.len
+    passed_tests = 0
+    for test in self.tests
+        self.failures = []
+        test.func()
+        if self.failures.len > 0 then
+            print("Test failed: " + test.name)
+            for failure in self.failures
+                print("  " + failure)
+            end for
+        else
+            passed_tests = passed_tests + 1
+            print("Test passed: " + test.name)
+        end if
+    end for
+    exit("Test summary: " + passed_tests + "/" + total_tests + " tests passed")
+end function
