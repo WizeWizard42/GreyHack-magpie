@@ -829,7 +829,9 @@ MiniClick.createCommand("ping", "Ping an IP address").addArgument("ip", "The IP 
 StateManager.set_object(StateManager.home_shell)
 
 while true
-    command = user_input(StateManager.focused_object["file"].path + "# ")
+    prompt_text = active_user + "@" + StateManager.focused_object["computer"].public_ip + ": " + StateManager.focused_object["file"].path + "# "
+
+    command = user_input(prompt_text)
     if command == "exit" then
         break
     end if
