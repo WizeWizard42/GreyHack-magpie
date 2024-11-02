@@ -549,6 +549,13 @@ MiniClick.createCommand("unalias", "Remove a command alias").addArgument("alias"
 
 ////////////////////////////////////////////////////
 
+ExploitManager = {}
+ExploitManager.classID = "ExploitManager"
+
+// TODO: Implement exploit manager. Plan out structure first.
+
+////////////////////////////////////////////////////
+
 FileCommands = {}
 FileCommands.classID = "FileCommands"
 
