@@ -168,7 +168,7 @@ obj.build=function
 if MiniClick.commands.hasIndex(self.name) then
 print("Warning: Overwriting existing command '"+self.name+"'")
 end if
-MiniClick.commands[self.name]={"name":self.name,"description":self.description,"options":self.options,"arguments":self.arguments,"func":self["func"]}
+MiniClick.commands[self.name]={"name":self.name,"description":self.description,"options":self.options,"arguments":self.arguments,"is_alias":false,"func":self["func"]}
 end function
 return obj
 end function
@@ -278,10 +278,6 @@ return help_text
 end function
 // Running Commands
 MiniClick.run=function(args)
-if args.len==0 or args[0]=="help" then
-print(MiniClick.generate_help)
-return 
-end if
 command_name=args[0]
 if not MiniClick.commands.hasIndex(command_name) then
 print("Unknown command: "+command_name)
@@ -310,28 +306,120 @@ end function
 //#include testing/test_harness.src;
 StateManager={}
 StateManager.classID="StateManager"
-StateManager.focused_object={"file":null,"computer":null,"shell":null}
+StateManager.focused_object={}
 // The object currently being interacted with
-StateManager.home_shell=get_shell
+StateManager.partial_object={}
+// The currently stored p-object 
+StateManager.stored_objects=[]
+// A collection of stored objects
+StateManager.home_object={}
+StateManager.relative_object={}
 StateManager.set_object=function(object)
 type=typeof(object)
 if type=="shell" then
-self.focused_object["file"]=object.host_computer.File("/")
-self.focused_object["computer"]=object.host_computer
-self.focused_object["shell"]=object
+self.focused_object={"uid":md5(str(rnd))[:6],"file":object.host_computer.File("/"),"computer":object.host_computer,"shell":object,"pub_ip":object.host_computer.public_ip,"local_ip":object.host_computer.local_ip}
+self.stored_objects.push(self.focused_object)
 return 
 end if
 if type=="computer" then
-self.focused_object["file"]=object.File("/")
-self.focused_object["computer"]=object
+self.focused_object={"uid":md5(str(rnd))[:6],"file":object.File("/"),"computer":object,"shell":null,"pub_ip":object.public_ip,"local_ip":object.local_ip}
+self.stored_objects.push(self.focused_object)
 return 
 end if
 if type=="file" then
-self.focused_object["file"]=object
+self.focused_object={"uid":md5(str(rnd))[:6],"file":object,"computer":null,"shell":null,"pub_ip":"unknown","local_ip":"unknown"}
+self.stored_objects.push(self.focused_object)
 return 
 end if
 return "Invalid object type: "+type
 end function
+////////////////////////////////////////////////////
+StateCommands={}
+// CLI commands for interacting with StateManager
+StateCommands.classID="StateCommands"
+StateCommands.list_objects=function(args)
+result=""
+for obj in StateManager.stored_objects
+// Print UID, type, and IP addresses
+key=obj["uid"]
+result=result+key+":"
+if StateManager.focused_object["uid"]==obj["uid"] then result=result+" (focused)"
+if obj["shell"]!=null then
+result=result+" shell "
+else if obj["computer"]!=null then
+result=result+" computer "
+else
+result=result+" file "
+end if
+result=result+obj["local_ip"]+"@"+obj["pub_ip"]+char(10)
+end for
+return result
+end function
+StateCommands.focus_object=function(args)
+uid=args["uid"]
+obj=StateManager.stored_objects.first("uid",uid)
+if obj!=null then
+StateManager.focused_object=obj
+return 
+end if
+return "Unknown object: "+uid
+end function
+StateCommands.release_object=function(args)
+uid=args["uid"]
+obj=StateManager.stored_objects.first("uid",uid)
+if obj==null then
+return "Unknown object: "+uid
+end if
+if StateManager.focused_object["uid"]==uid then return "Cannot release focused object."
+index=StateManager.stored_objects.indexOf(obj)
+confirm=user_input("Are you sure you want to release this object? (y/n): ")
+if confirm!="y" then return 
+return StateManager.stored_objects.remove(index)
+end function
+MiniClick.createCommand("list","List stored objects").setFunction(StateCommands["list_objects"]).build
+MiniClick.createCommand("focus","Focus on a stored object").addArgument("uid","The UID of the object to focus on").setFunction(StateCommands["focus_object"]).build
+MiniClick.createCommand("release","Release a stored object").addArgument("uid","The UID of the object to release").setFunction(StateCommands["release_object"]).build
+// TODO: This stuff
+////////////////////////////////////////////////////
+UtilityCommands={}
+UtilityCommands.classID="UtilityCommands"
+UtilityCommands.echo=function(args)
+return args["message"].join(" ")
+end function
+UtilityCommands.clear=function(args)
+clear_screen
+end function
+UtilityCommands.help=function(args)
+return MiniClick.generate_help
+end function
+UtilityCommands.set_alias=function(args)
+alias=args["alias"]
+command=args["command"]
+if MiniClick.commands.hasIndex(alias) then
+return "Alias already exists: "+alias
+end if
+if not MiniClick.commands.hasIndex(command) then
+return "Unknown command: "+command
+end if
+MiniClick.commands[alias]=MiniClick.commands[command]
+end function
+UtilityCommands.unset_alias=function(args)
+alias=args["alias"]
+if not MiniClick.commands.hasIndex(alias) then
+return "Unknown alias: "+alias
+end if
+if not MiniClick.commands[alias].is_alias then
+return "Not an alias: "+alias
+end if
+MiniClick.commands.remove(alias)
+return "Alias removed: "+alias
+end function
+MiniClick.createCommand("echo","Print a message").addArgument("message","The message to print",true).setFunction(UtilityCommands["echo"]).build
+MiniClick.createCommand("clear","Clear the screen").setFunction(UtilityCommands["clear"]).build
+MiniClick.createCommand("help","Show help text").setFunction(UtilityCommands["help"]).build
+MiniClick.createCommand("alias","Create a command alias").addArgument("alias","The alias to create").addArgument("command","The command to alias").setFunction(UtilityCommands["set_alias"]).build
+MiniClick.createCommand("unalias","Remove a command alias").addArgument("alias","The alias to remove").setFunction(UtilityCommands["unset_alias"]).build
+////////////////////////////////////////////////////
 FileCommands={}
 FileCommands.classID="FileCommands"
 FileCommands.read_file=function(args)
@@ -542,7 +630,7 @@ MiniClick.createCommand("write","Write to a file").addArgument("filename","The n
 MiniClick.createCommand("ls","List files in the current directory").setFunction(FileCommands["list_files"]).build
 MiniClick.createCommand("cd","Change the current directory").addArgument("path","The path to change to").setFunction(FileCommands["change_dir"]).build
 MiniClick.createCommand("rm","Delete a file").addArgument("filename","The name of the file to delete").setFunction(FileCommands["delete_file"]).build
-MiniClick.createCommand("chmod","Change file permissions").addArgument("filename","The name of the file to change permissions for").addArgument("permissions","The new permissions").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_perms"]).build
+MiniClick.createCommand("chmod","Change file permissions").addArgument("filename","The name of the file to change permissions for").addArgument("permissions","The new permissions (octal, not rwx)").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_perms"]).build
 MiniClick.createCommand("chgrp","Change file group").addArgument("filename","The name of the file to change group for").addArgument("group","The new group").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_group"]).build
 MiniClick.createCommand("chown","Change file owner").addArgument("filename","The name of the file to change owner for").addArgument("owner","The new owner").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_owner"]).build
 MiniClick.createCommand("cp","Copy a file").addArgument("filename","The name of the file to copy").addArgument("destination","The destination folder").addArgument("newname","The new name of the file").setFunction(FileCommands["copy_file"]).build
@@ -677,23 +765,35 @@ if confirm=="y" then
 return launch(StateManager.focused_object["shell"],program,params)
 end if
 end function
+ShellCommands.try_ping=function(args)
+if StateManager.focused_object["shell"]==null then
+return "Shell object not set."
+end if
+ip=args["ip"]
+is_pingable=ping(StateManager.focused_object["shell"],ip)
+if typeof(is_pingable)=="string" then return is_pingable
+if is_pingable then return "Ping successful."
+return "Ping failed."
+end function
 MiniClick.createCommand("shell","Drop to a shell").setFunction(ShellCommands["drop_shell"]).build
 MiniClick.createCommand("build","Build a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("can_import","Allow the file to be imported",false,"i").setFunction(ShellCommands["build_file"]).build
 MiniClick.createCommand("get","Get a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("to_relative","Put the file in your current relative shell",false,"r").setFunction(ShellCommands["get_file"]).build
 MiniClick.createCommand("put","Put a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("from_relative","Get the file from your current relative shell",false,"r").setFunction(ShellCommands["put_file"]).build
 MiniClick.createCommand("launch","Run an external program").addArgument("program","The program to run").addArgument("params","The parameters to pass to the program",true).setFunction(ShellCommands["run_command"]).build
+MiniClick.createCommand("ping","Ping an IP address").addArgument("ip","The IP address to ping").setFunction(ShellCommands["try_ping"]).build
 ////////////////////////////////////////////////////
 // Basic testing usage
 ////////////////////////////////////////////////////
 // Uncomment to enable File tests
 //#include testing/file_tests.src;
-StateManager.set_object(StateManager.home_shell)
+StateManager.set_object(get_shell)
 while true
-command=user_input(StateManager.focused_object["file"].path+"# ")
+prompt_text=active_user+"@"+StateManager.focused_object["computer"].public_ip+": "+StateManager.focused_object["file"].path+"# "
+command=user_input(prompt_text).trim
 if command=="exit" then
 break
 end if
-command=command.trim.split(" ")
+command=command.split(" ")
 result=MiniClick.run(command)
 if result!=null then
 print(result)
