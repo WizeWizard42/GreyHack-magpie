@@ -322,23 +322,24 @@ self.cob["partial_object"]={}
 self.cob["stored_objects"]=[]
 self.cob["plugin_stores"]={}
 self.set_object(get_shell)
+self.cob["focused_object"].info.user=active_user
 self.cob["home_object"]=self.cob["focused_object"]
 self.cob["relative_object"]=self.cob["focused_object"]
 end function
 StateManager.set_object=function(object)
 type=typeof(object)
 if type=="shell" then
-self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.host_computer.File("/"),"computer":object.host_computer,"shell":object,"pub_ip":object.host_computer.public_ip,"local_ip":object.host_computer.local_ip}
+self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.host_computer.File("/"),"computer":object.host_computer,"shell":object,"info":{"user":"unknown","domain":object.host_computer.get_name,"pub_ip":object.host_computer.public_ip,"local_ip":object.host_computer.local_ip}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
 return 
 end if
 if type=="computer" then
-self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.File("/"),"computer":object,"shell":null,"pub_ip":object.public_ip,"local_ip":object.local_ip}
+self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.File("/"),"computer":object,"shell":null,"info":{"user":"unknown","domain":object.host_computer.get_name,"pub_ip":object.host_computer.public_ip,"local_ip":object.host_computer.local_ip}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
 return 
 end if
 if type=="file" then
-self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object,"computer":null,"shell":null,"pub_ip":"unknown","local_ip":"unknown"}
+self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object,"computer":null,"shell":null,"info":{"user":"unknown","domain":"unknown","pub_ip":"unknown","local_ip":"unknown"}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
 return 
 end if
@@ -364,7 +365,7 @@ result=result+" computer "
 else
 result=result+" file "
 end if
-result=result+obj["local_ip"]+"@"+obj["pub_ip"]+char(10)
+result=result+obj.info["local_ip"]+"@"+obj.info["pub_ip"]+char(10)
 end for
 return result
 end function
@@ -800,7 +801,7 @@ MiniClick.createCommand("ping","Ping an IP address").addArgument("ip","The IP ad
 //#include testing/file_tests.src;
 StateManager.init
 while true
-prompt_text=active_user+"@"+StateManager.cob["focused_object"]["computer"].public_ip+": "+StateManager.cob["focused_object"]["file"].path+"# "
+prompt_text=StateManager.cob["focused_object"].info.user+"@"+StateManager.cob["focused_object"].info.pub_ip+": "+StateManager.cob["focused_object"]["file"].path+"# "
 command=user_input(prompt_text).trim
 if command=="exit" then
 break
