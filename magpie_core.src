@@ -350,18 +350,35 @@ end function
 StateManager = {}
 StateManager.classID = "StateManager"
 
-StateManager.focused_object = {} // The object currently being interacted with
-StateManager.partial_object = {} // The currently stored p-object 
-StateManager.stored_objects = [] // A collection of stored objects
+StateManager.cob = @get_custom_object // Persistent storage for the state manager
 
-StateManager.home_object = {}
-StateManager.relative_object = {}
+StateManager.init = function()
+    if not self.cob.hasIndex("focused_object") then 
+        self.first_layer()
+        return
+    end if
+
+    self.cob.layer = self.cob.layer + 1
+    self.cob["relative_object"] = self.cob["focused_object"]
+end function
+
+StateManager.first_layer = function()
+    self.cob.layer = 0
+
+    self.cob["partial_object"] = {}
+    self.cob["stored_objects"] = []
+    self.cob["plugin_stores"] = {}
+
+    self.set_object(get_shell)
+    self.cob["home_object"] = self.cob["focused_object"]
+    self.cob["relative_object"] = self.cob["focused_object"]
+end function
 
 StateManager.set_object = function(object)
     type = typeof(object)
 
     if type == "shell" then
-        self.focused_object = {
+        self.cob["focused_object"] = {
             "uid": md5(str(rnd))[:6],
             "file": object.host_computer.File("/"),
             "computer": object.host_computer,
@@ -369,12 +386,12 @@ StateManager.set_object = function(object)
             "pub_ip": object.host_computer.public_ip,
             "local_ip": object.host_computer.local_ip,
         }
-        self.stored_objects.push(self.focused_object) 
+        self.cob["stored_objects"].push(self.cob["focused_object"]) 
         return
     end if
 
     if type == "computer" then
-        self.focused_object = {
+        self.cob["focused_object"] = {
             "uid": md5(str(rnd))[:6],
             "file": object.File("/"),
             "computer": object,
@@ -382,12 +399,12 @@ StateManager.set_object = function(object)
             "pub_ip": object.public_ip,
             "local_ip": object.local_ip,
         }
-        self.stored_objects.push(self.focused_object) 
+        self.cob["stored_objects"].push(self.cob["focused_object"])
         return
     end if
 
     if type == "file" then
-        self.focused_object = {
+        self.cob["focused_object"] = {
             "uid": md5(str(rnd))[:6],
             "file": object,
             "computer": null,
@@ -395,7 +412,7 @@ StateManager.set_object = function(object)
             "pub_ip": "unknown",
             "local_ip": "unknown",
         }
-        self.stored_objects.push(self.focused_object) 
+        self.cob["stored_objects"].push(self.cob["focused_object"])
         return
     end if
 
@@ -409,11 +426,13 @@ StateCommands.classID = "StateCommands"
 
 StateCommands.list_objects = function(args)
     result = ""
-    for obj in StateManager.stored_objects // Print UID, type, and IP addresses
+    for obj in StateManager.cob["stored_objects"] // Print UID, type, and IP addresses
         key = obj["uid"]
         result = result + key + ":"
 
-        if StateManager.focused_object["uid"] == obj["uid"] then result = result + " (focused)"
+        if StateManager.cob["focused_object"]["uid"] == obj["uid"] then result = result + " (focused)"
+        if StateManager.cob["relative_object"]["uid"] == obj["uid"] then result = result + " (relative)"
+        if StateManager.cob["home_object"]["uid"] == obj["uid"] then result = result + " (home)"
 
         if obj["shell"] != null then
             result = result + " shell "
@@ -431,9 +450,9 @@ end function
 StateCommands.focus_object = function(args)
     uid = args["uid"]
 
-    obj = StateManager.stored_objects.first("uid", uid)
+    obj = StateManager.cob["stored_objects"].first("uid", uid)
     if obj != null then
-        StateManager.focused_object = obj
+        StateManager.cob["focused_object"] = obj
         return
     end if
 
@@ -442,27 +461,25 @@ end function
 
 StateCommands.release_object = function(args)
     uid = args["uid"]
-    obj = StateManager.stored_objects.first("uid", uid)
+    obj = StateManager.cob["stored_objects"].first("uid", uid)
 
     if obj == null then
         return "Unknown object: " + uid
     end if
 
-    if StateManager.focused_object["uid"] == uid then return "Cannot release focused object."
+    if StateManager.cob["focused_object"]["uid"] == uid then return "Cannot release focused object."
 
-    index = StateManager.stored_objects.indexOf(obj)
+    index = StateManager.cob["stored_objects"].indexOf(obj)
 
     confirm = user_input("Are you sure you want to release this object? (y/n): ")
     if confirm != "y" then return
 
-    return StateManager.stored_objects.remove(index)
+    return StateManager.cob["stored_objects"].remove(index)
 end function
 
 MiniClick.createCommand("list", "List stored objects").setFunction(StateCommands["list_objects"]).build()
 MiniClick.createCommand("focus", "Focus on a stored object").addArgument("uid", "The UID of the object to focus on").setFunction(StateCommands["focus_object"]).build()
 MiniClick.createCommand("release", "Release a stored object").addArgument("uid", "The UID of the object to release").setFunction(StateCommands["release_object"]).build()
-
-// TODO: This stuff
 
 ////////////////////////////////////////////////////
 
@@ -523,12 +540,12 @@ FileCommands = {}
 FileCommands.classID = "FileCommands"
 
 FileCommands.read_file = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
 
-    file = StateManager.focused_object["file"].get_files.first("name", filename)
+    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
     end if
@@ -536,13 +553,13 @@ FileCommands.read_file = function(args)
 end function
 
 FileCommands.write_file = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
     content = args["content"].join(" ")
 
-    file = StateManager.focused_object["file"].get_files.first("name", filename)
+    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
     end if
@@ -554,23 +571,23 @@ FileCommands.write_file = function(args)
 end function
 
 FileCommands.list_files = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
-    if StateManager.focused_object["file"].is_folder == false then
+    if StateManager.cob["focused_object"]["file"].is_folder == false then
         return "File is not a folder."
     end if
-    folders = StateManager.focused_object["file"].get_folders
+    folders = StateManager.cob["focused_object"]["file"].get_folders
     if folders == null then
         return "cwd has been deleted. Good luck!"
     end if
-    files = StateManager.focused_object["file"].get_files
+    files = StateManager.cob["focused_object"]["file"].get_files
     if files == null then
         return "cwd has been deleted. Good luck!"
     end if
 
     objects = folders + files
-    objects.insert(0, StateManager.focused_object["file"])
+    objects.insert(0, StateManager.cob["focused_object"]["file"])
 
     result = ""
     for obj in objects
@@ -581,12 +598,12 @@ FileCommands.list_files = function(args)
 end function
 
 FileCommands.change_dir = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     path = args["path"].trim.split("/")
 
-    temp_file = StateManager.focused_object["file"]
+    temp_file = StateManager.cob["focused_object"]["file"]
     if path[0] == "" then
         while temp_file.parent != null
             temp_file = temp_file.parent
@@ -610,16 +627,16 @@ FileCommands.change_dir = function(args)
         end if
     end for
 
-    StateManager.focused_object["file"] = temp_file
+    StateManager.cob["focused_object"]["file"] = temp_file
 end function
 
 FileCommands.delete_file = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
 
-    file = StateManager.focused_object["file"].get_files.first("name", filename)
+    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
     end if
@@ -631,7 +648,7 @@ FileCommands.delete_file = function(args)
 end function
 
 FileCommands.change_perms = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
@@ -643,9 +660,9 @@ FileCommands.change_perms = function(args)
     end if
 
     if filename == "." then
-        file = StateManager.focused_object["file"]
+        file = StateManager.cob["focused_object"]["file"]
     else
-        file = StateManager.focused_object["file"].get_files.first("name", filename)
+        file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     end if
 
     if file == null then
@@ -688,14 +705,14 @@ FileCommands.change_perms = function(args)
 end function
 
 FileCommands.change_group = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
     group = args["group"]
     recursive = args["recursive"]
 
-    file = StateManager.focused_object["file"].get_files.first("name", filename)
+    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
     end if
@@ -707,14 +724,14 @@ FileCommands.change_group = function(args)
 end function
 
 FileCommands.change_owner = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
     owner = args["owner"]
     recursive = args["recursive"]
 
-    file = StateManager.focused_object["file"].get_files.first("name", filename)
+    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
     end if
@@ -726,14 +743,14 @@ FileCommands.change_owner = function(args)
 end function
 
 FileCommands.copy_file = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
     destination = args["destination"]
     newname = args["newname"]
 
-    file = StateManager.focused_object["file"].get_files.first("name", filename)
+    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
     end if
@@ -745,14 +762,14 @@ FileCommands.copy_file = function(args)
 end function
 
 FileCommands.move_file = function(args)
-    if StateManager.focused_object["file"] == null then
+    if StateManager.cob["focused_object"]["file"] == null then
         return "File object not set."
     end if
     filename = args["filename"]
     destination = args["destination"]
     newname = args["newname"]
 
-    file = StateManager.focused_object["file"].get_files.first("name", filename)
+    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
         return "File not found: " + filename
     end if
@@ -780,80 +797,80 @@ ComputerCommands = {}
 ComputerCommands.classID = "ComputerCommands"
 
 ComputerCommands.view_procs = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
-    return format_columns(StateManager.focused_object["computer"].show_procs)
+    return format_columns(StateManager.cob["focused_object"]["computer"].show_procs)
 end function
 
 ComputerCommands.kill_proc = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
     pid = args["pid"].to_int
     if typeof(pid) != "number" then return "Invalid PID: " + args["pid"]
     
-    return StateManager.focused_object["computer"].close_program(pid)
+    return StateManager.cob["focused_object"]["computer"].close_program(pid)
 end function
 
 ComputerCommands.add_user = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
     username = args["username"]
     password = args["password"]
 
-    return StateManager.focused_object["computer"].create_user(username, password)
+    return StateManager.cob["focused_object"]["computer"].create_user(username, password)
 end function
 
 ComputerCommands.remove_user = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
     username = args["username"]
     remove_home = args["remove_home"]
 
-    return StateManager.focused_object["computer"].delete_user(username, remove_home)
+    return StateManager.cob["focused_object"]["computer"].delete_user(username, remove_home)
 end function
 
 ComputerCommands.add_group = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
     username = args["username"]
     groupname = args["groupname"]
 
-    return StateManager.focused_object["computer"].create_group(username, groupname)
+    return StateManager.cob["focused_object"]["computer"].create_group(username, groupname)
 end function
 
 ComputerCommands.remove_group = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
     username = args["username"]
     groupname = args["groupname"]
 
-    return StateManager.focused_object["computer"].delete_group(username, groupname)
+    return StateManager.cob["focused_object"]["computer"].delete_group(username, groupname)
 end function
 
 ComputerCommands.create_file = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
     path = args["path"]
     filename = args["filename"]
 
-    return StateManager.focused_object["computer"].touch(path, filename)
+    return StateManager.cob["focused_object"]["computer"].touch(path, filename)
 end function
 
 ComputerCommands.create_folder = function(args)
-    if StateManager.focused_object["computer"] == null then
+    if StateManager.cob["focused_object"]["computer"] == null then
         return "Computer object not set."
     end if
     path = args["path"]
     foldername = args["foldername"]
 
-    return StateManager.focused_object["computer"].create_folder(path, foldername)
+    return StateManager.cob["focused_object"]["computer"].create_folder(path, foldername)
 end function
 
 MiniClick.createCommand("ps", "View running processes").setFunction(ComputerCommands["view_procs"]).build()
@@ -871,30 +888,30 @@ ShellCommands = {}
 ShellCommands.classID = "ShellCommands"
 
 ShellCommands.drop_shell = function(args)
-    if StateManager.focused_object["shell"] == null then
+    if StateManager.cob["focused_object"]["shell"] == null then
         return "Shell object not set."
     end if
 
     confirm = user_input("Are you absolutely sure you want to drop to a shell? (y/n): ")
     if confirm == "y" then
         print("Dropping to shell...")
-        return start_terminal(StateManager.focused_object["shell"])
+        return start_terminal(StateManager.cob["focused_object"]["shell"])
     end if
 end function
 
 ShellCommands.build_file = function(args)
-    if StateManager.focused_object["shell"] == null then
+    if StateManager.cob["focused_object"]["shell"] == null then
         return "Shell object not set."
     end if
     source_path = args["source_path"]
     destination_path = args["destination_path"]
     can_import = args["can_import"]
 
-    return build(StateManager.focused_object["shell"], source_path, destination_path, can_import)
+    return build(StateManager.cob["focused_object"]["shell"], source_path, destination_path, can_import)
 end function
 
 ShellCommands.get_file = function(args)
-    if StateManager.focused_object["shell"] == null then
+    if StateManager.cob["focused_object"]["shell"] == null then
         return "Shell object not set."
     end if
     source_path = args["source_path"]
@@ -902,14 +919,14 @@ ShellCommands.get_file = function(args)
     to_relative = args["to_relative"]
 
     if to_relative then
-        return scp(StateManager.focused_object["shell"], source_path, destination_path, get_shell)
+        return scp(StateManager.cob["focused_object"]["shell"], source_path, destination_path, get_shell)
     end if
 
-    return scp(StateManager.focused_object["shell"], source_path, destination_path, StateManager.home_shell)
+    return scp(StateManager.cob["focused_object"]["shell"], source_path, destination_path, StateManager.home_shell)
 end function
 
 ShellCommands.put_file = function(args)
-    if StateManager.focused_object["shell"] == null then
+    if StateManager.cob["focused_object"]["shell"] == null then
         return "Shell object not set."
     end if
     source_path = args["source_path"]
@@ -917,14 +934,14 @@ ShellCommands.put_file = function(args)
     from_relative = args["from_relative"]
 
     if from_relative then
-        return scp(get_shell, destination_path, source_path, StateManager.focused_object["shell"])
+        return scp(get_shell, destination_path, source_path, StateManager.cob["focused_object"]["shell"])
     end if
 
-    return scp(StateManager.home_shell, destination_path, source_path, StateManager.focused_object["shell"])
+    return scp(StateManager.home_shell, destination_path, source_path, StateManager.cob["focused_object"]["shell"])
 end function
 
 ShellCommands.run_command = function(args)
-    if StateManager.focused_object["shell"] == null then
+    if StateManager.cob["focused_object"]["shell"] == null then
         return "Shell object not set."
     end if
     program = args["program"]
@@ -932,17 +949,17 @@ ShellCommands.run_command = function(args)
 
     confirm = user_input("Are you sure you want to run an external program? You will lose your current context. (y/n): ")
     if confirm == "y" then
-        return launch(StateManager.focused_object["shell"], program, params)
+        return launch(StateManager.cob["focused_object"]["shell"], program, params)
     end if
 end function
 
 ShellCommands.try_ping = function(args)
-    if StateManager.focused_object["shell"] == null then
+    if StateManager.cob["focused_object"]["shell"] == null then
         return "Shell object not set."
     end if
     ip = args["ip"]
 
-    is_pingable = ping(StateManager.focused_object["shell"], ip)
+    is_pingable = ping(StateManager.cob["focused_object"]["shell"], ip)
 
     if typeof(is_pingable) == "string" then return is_pingable
     if is_pingable then return "Ping successful."
@@ -964,10 +981,10 @@ MiniClick.createCommand("ping", "Ping an IP address").addArgument("ip", "The IP 
 // Uncomment to enable File tests
 //#include testing/file_tests.src;
 
-StateManager.set_object(get_shell)
+StateManager.init()
 
 while true
-    prompt_text = active_user + "@" + StateManager.focused_object["computer"].public_ip + ": " + StateManager.focused_object["file"].path + "# "
+    prompt_text = active_user + "@" + StateManager.cob["focused_object"]["computer"].public_ip + ": " + StateManager.cob["focused_object"]["file"].path + "# "
 
     command = user_input(prompt_text).trim
     if command == "exit" then
