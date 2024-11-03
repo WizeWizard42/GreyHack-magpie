@@ -490,9 +490,19 @@ StateCommands.release_object = function(args)
     return StateManager.cob["stored_objects"].remove(index)
 end function
 
-MiniClick.create_command("list", "List stored objects").set_function(StateCommands["list_objects"]).build()
-MiniClick.create_command("focus", "Focus on a stored object").add_argument("uid", "The UID of the object to focus on").set_function(StateCommands["focus_object"]).build()
-MiniClick.create_command("release", "Release a stored object").add_argument("uid", "The UID of the object to release").set_function(StateCommands["release_object"]).build()
+MiniClick.create_command("list", "List stored objects").
+    set_function(StateCommands["list_objects"]).
+    build()
+
+MiniClick.create_command("focus", "Focus on a stored object").
+    add_argument("uid", "The UID of the object to focus on").
+    set_function(StateCommands["focus_object"]).
+    build()
+
+MiniClick.create_command("release", "Release a stored object").
+    add_argument("uid", "The UID of the object to release").
+    set_function(StateCommands["release_object"]).
+    build()
 
 ////////////////////////////////////////////////////
 
@@ -541,11 +551,29 @@ UtilityCommands.unset_alias = function(args)
     return "Alias removed: " + alias
 end function
 
-MiniClick.create_command("echo", "Print a message").add_argument("message", "The message to print", true).set_function(UtilityCommands["echo"]).build()
-MiniClick.create_command("clear", "Clear the screen").set_function(UtilityCommands["clear"]).build()
-MiniClick.create_command("help", "Show help text").set_function(UtilityCommands["help"]).build()
-MiniClick.create_command("alias", "Create a command alias").add_argument("alias", "The alias to create").add_argument("command", "The command to alias").set_function(UtilityCommands["set_alias"]).build()
-MiniClick.create_command("unalias", "Remove a command alias").add_argument("alias", "The alias to remove").set_function(UtilityCommands["unset_alias"]).build()
+MiniClick.create_command("echo", "Print a message").
+    add_argument("message", "The message to print", true).
+    set_function(UtilityCommands["echo"]).
+    build()
+
+MiniClick.create_command("clear", "Clear the screen").
+    set_function(UtilityCommands["clear"]).
+    build()
+
+MiniClick.create_command("help", "Show help text").
+    set_function(UtilityCommands["help"]).
+    build()
+
+MiniClick.create_command("alias", "Create a command alias").
+    add_argument("alias", "The alias to create").
+    add_argument("command", "The command to alias").
+    set_function(UtilityCommands["set_alias"]).
+    build()
+
+MiniClick.create_command("unalias", "Remove a command alias").
+    add_argument("alias", "The alias to remove").
+    set_function(UtilityCommands["unset_alias"]).
+    build()
 
 ////////////////////////////////////////////////////
 
@@ -800,16 +828,64 @@ FileCommands.move_file = function(args)
     end if
 end function
 
-MiniClick.create_command("cat", "Read the contents of a file").add_argument("filename", "The name of the file to read").set_function(FileCommands["read_file"]).build()
-MiniClick.create_command("write", "Write to a file").add_argument("filename", "The name of the file to write to").add_argument("content", "The content to write", true).set_function(FileCommands["write_file"]).build()
-MiniClick.create_command("ls", "List files in the current directory").set_function(FileCommands["list_files"]).build()
-MiniClick.create_command("cd", "Change the current directory").add_argument("path", "The path to change to").set_function(FileCommands["change_dir"]).build()
-MiniClick.create_command("rm", "Delete a file").add_argument("filename", "The name of the file to delete").set_function(FileCommands["delete_file"]).build()
-MiniClick.create_command("chmod", "Change file permissions").add_argument("filename", "The name of the file to change permissions for").add_argument("permissions", "The new permissions (octal, not rwx)").add_option("recursive", "Apply changes recursively", false, "r").set_function(FileCommands["change_perms"]).build()
-MiniClick.create_command("chgrp", "Change file group").add_argument("filename", "The name of the file to change group for").add_argument("group", "The new group").add_option("recursive", "Apply changes recursively", false, "r").set_function(FileCommands["change_group"]).build()
-MiniClick.create_command("chown", "Change file owner").add_argument("filename", "The name of the file to change owner for").add_argument("owner", "The new owner").add_option("recursive", "Apply changes recursively", false, "r").set_function(FileCommands["change_owner"]).build()
-MiniClick.create_command("cp", "Copy a file").add_argument("filename", "The name of the file to copy").add_argument("destination", "The destination folder").add_argument("newname", "The new name of the file").set_function(FileCommands["copy_file"]).build()
-MiniClick.create_command("mv", "Move a file").add_argument("filename", "The name of the file to move").add_argument("destination", "The destination folder").add_argument("newname", "The new name of the file").set_function(FileCommands["move_file"]).build()
+MiniClick.create_command("cat", "Read the contents of a file").
+    add_argument("filename", "The name of the file to read").
+    set_function(FileCommands["read_file"]).
+    build()
+
+MiniClick.create_command("write", "Write to a file").
+    add_argument("filename", "The name of the file to write to").
+    add_argument("content", "The content to write", true).
+    set_function(FileCommands["write_file"]).
+    build()
+
+MiniClick.create_command("ls", "List files in the current directory").
+    set_function(FileCommands["list_files"]).
+    build()
+
+MiniClick.create_command("cd", "Change the current directory").
+    add_argument("path", "The path to change to").
+    set_function(FileCommands["change_dir"]).
+    build()
+
+MiniClick.create_command("rm", "Delete a file").
+    add_argument("filename", "The name of the file to delete").
+    set_function(FileCommands["delete_file"]).
+    build()
+
+MiniClick.create_command("chmod", "Change file permissions").
+    add_argument("filename", "The name of the file to change permissions for").
+    add_argument("permissions", "The new permissions (octal, not rwx)").
+    add_option("recursive", "Apply changes recursively", false, "r").
+    set_function(FileCommands["change_perms"]).
+    build()
+
+MiniClick.create_command("chgrp", "Change file group").
+    add_argument("filename", "The name of the file to change group for").
+    add_argument("group", "The new group").
+    add_option("recursive", "Apply changes recursively", false, "r").
+    set_function(FileCommands["change_group"]).
+    build()
+
+MiniClick.create_command("chown", "Change file owner").
+    add_argument("filename", "The name of the file to change owner for").
+    add_argument("owner", "The new owner").
+    add_option("recursive", "Apply changes recursively", false, "r").
+    set_function(FileCommands["change_owner"]).build()
+
+MiniClick.create_command("cp", "Copy a file").
+    add_argument("filename", "The name of the file to copy").
+    add_argument("destination", "The destination folder").
+    add_argument("newname", "The new name of the file").
+    set_function(FileCommands["copy_file"]).
+    build()
+
+MiniClick.create_command("mv", "Move a file").
+    add_argument("filename", "The name of the file to move").
+    add_argument("destination", "The destination folder").
+    add_argument("newname", "The new name of the file").
+    set_function(FileCommands["move_file"]).
+    build()
 
 ////////////////////////////////////////////////////
 
@@ -893,14 +969,50 @@ ComputerCommands.create_folder = function(args)
     return StateManager.cob["focused_object"]["computer"].create_folder(path, foldername)
 end function
 
-MiniClick.create_command("ps", "View running processes").set_function(ComputerCommands["view_procs"]).build()
-MiniClick.create_command("kill", "Kill a running process").add_argument("pid", "The PID of the process to kill").set_function(ComputerCommands["kill_proc"]).build()
-MiniClick.create_command("adduser", "Add a new user").add_argument("username", "The username of the new user").add_argument("password", "The password of the new user").set_function(ComputerCommands["add_user"]).build()
-MiniClick.create_command("deluser", "Delete a user").add_argument("username", "The user to delete").add_option("remove_home", "Remove the user's home directory", false, "r").set_function(ComputerCommands["remove_user"]).build()
-MiniClick.create_command("addgroup", "Add a new group").add_argument("username", "The user to add to the group").add_argument("groupname", "The name of the new group").set_function(ComputerCommands["add_group"]).build()
-MiniClick.create_command("delgroup", "Delete a group").add_argument("username", "The user to remove from the group").add_argument("groupname", "The name of the group to delete").set_function(ComputerCommands["remove_group"]).build()
-MiniClick.create_command("touch", "Create a new file").add_argument("path", "The path to create the file in").add_argument("filename", "The name of the new file").set_function(ComputerCommands["create_file"]).build()
-MiniClick.create_command("mkdir", "Create a new folder").add_argument("path", "The path to create the folder in").add_argument("foldername", "The name of the new folder").set_function(ComputerCommands["create_folder"]).build()
+MiniClick.create_command("ps", "View running processes").
+    set_function(ComputerCommands["view_procs"]).
+    build()
+
+MiniClick.create_command("kill", "Kill a running process").
+    add_argument("pid", "The PID of the process to kill").
+    set_function(ComputerCommands["kill_proc"]).
+    build()
+
+MiniClick.create_command("adduser", "Add a new user").
+    add_argument("username", "The username of the new user").
+    add_argument("password", "The password of the new user").
+    set_function(ComputerCommands["add_user"]).
+    build()
+
+MiniClick.create_command("deluser", "Delete a user").
+    add_argument("username", "The user to delete").
+    add_option("remove_home", "Remove the user's home directory", false, "r").
+    set_function(ComputerCommands["remove_user"]).
+    build()
+
+MiniClick.create_command("addgroup", "Add a new group").
+    add_argument("username", "The user to add to the group").
+    add_argument("groupname", "The name of the new group").
+    set_function(ComputerCommands["add_group"]).
+    build()
+
+MiniClick.create_command("delgroup", "Delete a group").
+    add_argument("username", "The user to remove from the group").
+    add_argument("groupname", "The name of the group to delete").
+    set_function(ComputerCommands["remove_group"]).
+    build()
+
+MiniClick.create_command("touch", "Create a new file").
+    add_argument("path", "The path to create the file in").
+    add_argument("filename", "The name of the new file").
+    set_function(ComputerCommands["create_file"]).
+    build()
+
+MiniClick.create_command("mkdir", "Create a new folder").
+    add_argument("path", "The path to create the folder in").
+    add_argument("foldername", "The name of the new folder").
+    set_function(ComputerCommands["create_folder"]).
+    build()
 
 ////////////////////////////////////////////////////
 
@@ -987,12 +1099,41 @@ ShellCommands.try_ping = function(args)
     return "Ping failed."
 end function
 
-MiniClick.create_command("shell", "Drop to a shell").set_function(ShellCommands["drop_shell"]).build()
-MiniClick.create_command("build", "Build a file").add_argument("source_path", "The path to the source file").add_argument("destination_path", "The path to the destination folder").add_option("can_import", "Allow the file to be imported", false, "i").set_function(ShellCommands["build_file"]).build()
-MiniClick.create_command("get", "Get a file").add_argument("source_path", "The path to the source file").add_argument("destination_path", "The path to the destination folder").add_option("to_relative", "Put the file in your current relative shell", false, "r").set_function(ShellCommands["get_file"]).build()
-MiniClick.create_command("put", "Put a file").add_argument("source_path", "The path to the source file").add_argument("destination_path", "The path to the destination folder").add_option("from_relative", "Get the file from your current relative shell", false, "r").set_function(ShellCommands["put_file"]).build()
-MiniClick.create_command("launch", "Run an external program").add_argument("program", "The program to run").add_argument("params", "The parameters to pass to the program", true).set_function(ShellCommands["run_command"]).build()
-MiniClick.create_command("ping", "Ping an IP address").add_argument("ip", "The IP address to ping").set_function(ShellCommands["try_ping"]).build()
+MiniClick.create_command("shell", "Drop to a shell").
+    set_function(ShellCommands["drop_shell"]).
+    build()
+
+MiniClick.create_command("build", "Build a file").
+    add_argument("source_path", "The path to the source file").
+    add_argument("destination_path", "The path to the destination folder").
+    add_option("can_import", "Allow the file to be imported", false, "i").
+    set_function(ShellCommands["build_file"]).
+    build()
+
+MiniClick.create_command("get", "Get a file").
+    add_argument("source_path", "The path to the source file").
+    add_argument("destination_path", "The path to the destination folder").
+    add_option("to_relative", "Put the file in your current relative shell", false, "r").
+    set_function(ShellCommands["get_file"]).
+    build()
+
+MiniClick.create_command("put", "Put a file").
+    add_argument("source_path", "The path to the source file").
+    add_argument("destination_path", "The path to the destination folder").
+    add_option("from_relative", "Get the file from your current relative shell", false, "r").
+    set_function(ShellCommands["put_file"]).
+    build()
+
+MiniClick.create_command("launch", "Run an external program").
+    add_argument("program", "The program to run").
+    add_argument("params", "The parameters to pass to the program", true).
+    set_function(ShellCommands["run_command"]).
+    build()
+
+MiniClick.create_command("ping", "Ping an IP address").
+    add_argument("ip", "The IP address to ping").
+    set_function(ShellCommands["try_ping"]).
+    build()
 
 ////////////////////////////////////////////////////
 // Basic testing usage
@@ -1011,6 +1152,12 @@ while true
         break
     end if
     command = command.split(" ")
+    for i in command
+        if i == "" then
+            command.remove(i)
+        end if
+    end for
+
     result = MiniClick.run(command)
     if result != null then
         print(result)
