@@ -146,7 +146,7 @@ obj.name=name
 obj.description=description
 obj.options={}
 obj.arguments=[]
-obj.addOption=function(name,description,default=false,short_name=null)
+obj.add_option=function(name,description,default=false,short_name=null)
 option_data={"name":name,"description":description,"default":default,"short_name":short_name}
 self.options[name]=option_data
 if short_name!=null then
@@ -156,11 +156,11 @@ end if
 return self
 // Enable method chaining
 end function
-obj.addArgument=function(name,description,is_rest=false)
+obj.add_argument=function(name,description,is_rest=false)
 self.arguments.push({"name":name,"description":description,"is_rest":is_rest})
 return self
 end function
-obj.setFunction=function(func)
+obj.set_function=function(func)
 self.func=@func
 return self
 end function
@@ -173,7 +173,7 @@ end function
 return obj
 end function
 // MiniClick Namespace Methods
-MiniClick.createCommand=function(name,description)
+MiniClick.create_command=function(name,description)
 return CommandBuilder(name,description)
 end function
 // Parsing Arguments and Options
@@ -184,25 +184,27 @@ i=0
 handle_option=function(option_name,is_short)
 if not command.options.hasIndex(option_name) then
 print("Unknown option: "+option_name)
-return false
+return null
 end if
 option=command.options[option_name]
 if typeof(option.default)=="number" and option.default==false then
 parsed[option_name]=true
+return 1
 else
 if i+1>=args.len then
 print("Option "+(is_short and "-" or "--")+option_name+" requires a value")
-return false
+return null
 end if
-i=i+1
-parsed[option_name]=args[i]
+parsed[option_name]=args[i+1]
+return 2
 end if
-return true
 end function
 while i<args.len
 arg=args[i]
 if arg[:2]=="--" then
-if not handle_option(arg[2:],false) then return null
+num_consumed=handle_option(arg[2:],false)
+if num_consumed==null then return null
+i=i+num_consumed
 else if arg[:1]=="-" then
 short_name=arg[1:]
 if not command.options.hasIndex(short_name) then
@@ -210,7 +212,9 @@ print("Unknown option: "+short_name)
 return null
 end if
 long_name=command.options[short_name].name
-if not handle_option(long_name,true) then return null
+num_consumed=handle_option(long_name,true)
+if num_consumed==null then return null
+i=i+num_consumed
 else
 if arg_index>=command.arguments.len then
 print("Too many arguments")
@@ -225,9 +229,9 @@ break
 else
 parsed[arg_name]=arg
 arg_index=arg_index+1
-end if
-end if
 i=i+1
+end if
+end if
 end while
 for option_name in command.options.indexes
 if not parsed.hasIndex(option_name) then
@@ -315,8 +319,27 @@ return
 end if
 self.cob.layer=self.cob.layer+1
 self.cob["relative_object"]=self.cob["focused_object"]
+MiniClick.run("put "+self.cob["home_path"]+"/librshell.so "+current_path)
+MiniClick.run("put "+self.cob["home_path"]+"/metaxploit.so "+current_path)
+self.cob["remote_metax"]=include_lib(current_path+"/metaxploit.so")
 end function
 StateManager.first_layer=function
+self.cob["aptclient"]=include_lib(current_path+"/aptclient.so")
+if self.cob["aptclient"]==null then exit("aptclient.so needs to be in the same directory as the script!")
+self.cob["aptclient"].update
+if self.cob["aptclient"].check_upgrade(current_path+"/librshell.so") then
+self.cob["aptclient"].upgrade("librshell.so",current_path)
+end if
+if self.cob["aptclient"].check_upgrade(current_path+"/metaxploit.so") then
+self.cob["aptclient"].upgrade("metaxploit.so",current_path)
+end if
+self.cob["home_metax"]=include_lib(current_path+"/metaxploit.so")
+self.cob["remote_metax"]=include_lib(current_path+"/metaxploit.so")
+self.cob["exploit_store"]={}
+// Structure: {"libname": {"version": [{"address": {"string": ["root/user/guest", "shell/computer/file"], "string": ["root/user/guest", "shell/computer/file"]}, ...}]}}
+self.cob["remote_rlib"]=null
+// Only sets once reverse shell is manually set
+self.cob["home_path"]=current_path
 self.cob.layer=0
 self.cob["partial_object"]={}
 self.cob["stored_objects"]=[]
@@ -334,7 +357,7 @@ self.cob["stored_objects"].push(self.cob["focused_object"])
 return 
 end if
 if type=="computer" then
-self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.File("/"),"computer":object,"shell":null,"info":{"user":"unknown","domain":object.host_computer.get_name,"pub_ip":object.host_computer.public_ip,"local_ip":object.host_computer.local_ip}}
+self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.File("/"),"computer":object,"shell":null,"info":{"user":"unknown","domain":object.get_name,"pub_ip":object.public_ip,"local_ip":object.local_ip}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
 return 
 end if
@@ -343,7 +366,7 @@ self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object,"computer":nul
 self.cob["stored_objects"].push(self.cob["focused_object"])
 return 
 end if
-return "Invalid object type: "+type
+if type!="file" and type!="computer" and type!="shell" then return "Invalid object type: "+type
 end function
 ////////////////////////////////////////////////////
 StateCommands={}
@@ -390,9 +413,9 @@ confirm=user_input("Are you sure you want to release this object? (y/n): ")
 if confirm!="y" then return 
 return StateManager.cob["stored_objects"].remove(index)
 end function
-MiniClick.createCommand("list","List stored objects").setFunction(StateCommands["list_objects"]).build
-MiniClick.createCommand("focus","Focus on a stored object").addArgument("uid","The UID of the object to focus on").setFunction(StateCommands["focus_object"]).build
-MiniClick.createCommand("release","Release a stored object").addArgument("uid","The UID of the object to release").setFunction(StateCommands["release_object"]).build
+MiniClick.create_command("list","List stored objects").set_function(StateCommands["list_objects"]).build
+MiniClick.create_command("focus","Focus on a stored object").add_argument("uid","The UID of the object to focus on").set_function(StateCommands["focus_object"]).build
+MiniClick.create_command("release","Release a stored object").add_argument("uid","The UID of the object to release").set_function(StateCommands["release_object"]).build
 ////////////////////////////////////////////////////
 UtilityCommands={}
 UtilityCommands.classID="UtilityCommands"
@@ -427,11 +450,167 @@ end if
 MiniClick.commands.remove(alias)
 return "Alias removed: "+alias
 end function
-MiniClick.createCommand("echo","Print a message").addArgument("message","The message to print",true).setFunction(UtilityCommands["echo"]).build
-MiniClick.createCommand("clear","Clear the screen").setFunction(UtilityCommands["clear"]).build
-MiniClick.createCommand("help","Show help text").setFunction(UtilityCommands["help"]).build
-MiniClick.createCommand("alias","Create a command alias").addArgument("alias","The alias to create").addArgument("command","The command to alias").setFunction(UtilityCommands["set_alias"]).build
-MiniClick.createCommand("unalias","Remove a command alias").addArgument("alias","The alias to remove").setFunction(UtilityCommands["unset_alias"]).build
+MiniClick.create_command("echo","Print a message").add_argument("message","The message to print",true).set_function(UtilityCommands["echo"]).build
+MiniClick.create_command("clear","Clear the screen").set_function(UtilityCommands["clear"]).build
+MiniClick.create_command("help","Show help text").set_function(UtilityCommands["help"]).build
+MiniClick.create_command("alias","Create a command alias").add_argument("alias","The alias to create").add_argument("command","The command to alias").set_function(UtilityCommands["set_alias"]).build
+MiniClick.create_command("unalias","Remove a command alias").add_argument("alias","The alias to remove").set_function(UtilityCommands["unset_alias"]).build
+////////////////////////////////////////////////////
+ExploitManager={}
+ExploitManager.classID="ExploitManager"
+ExploitManager.remote_lib=function(ip,port)
+port=port.to_int
+if typeof(port)!="number" then return "Invalid port: "+port
+return StateManager.cob["remote_metax"].net_use(ip,port).dump_lib
+end function
+ExploitManager.local_lib=function(path)
+return StateManager.cob["remote_metax"].load(path)
+end function
+ExploitManager.get_addresses=function(meta_lib)
+return StateManager.cob["remote_metax"].scan(meta_lib)
+end function
+ExploitManager.parse_address=function(unparsed)
+segments=unparsed.split("Unsafe check: ")[1:]
+parsed=[]
+for exploit in segments
+match=exploit.matches("<b>\S*<\/b>\.")
+parsed.push(match.values.pull[3:match.len-6])
+end for
+return parsed
+end function
+ExploitManager.verify_tuple=function(tuple)
+if not hasIndex(["root","user","guest","unknown"],tuple[0]) then return false
+if not hasIndex(["shell","computer","file","number"],tuple[1]) then return false
+return true
+end function
+ExploitManager.save_exploit=function(meta_lib,address,string,result_tuple)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+// This always returns false for some reason, so it's commented out for now
+//if not self.verify_tuple(result_tuple) then return "Invalid tuple: " + result_tuple
+if not StateManager.cob["exploit_store"].hasIndex(libname) then
+StateManager.cob["exploit_store"][libname]={}
+end if
+if not StateManager.cob["exploit_store"][libname].hasIndex(libversion) then
+StateManager.cob["exploit_store"][libname][libversion]={}
+end if
+if not StateManager.cob["exploit_store"][libname][libversion].hasIndex(address) then
+StateManager.cob["exploit_store"][libname][libversion][address]={}
+end if
+StateManager.cob["exploit_store"][libname][libversion][address][string]=result_tuple
+end function
+ExploitManager.get_exploits=function(meta_lib)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+if not StateManager.cob["exploit_store"][libname] then return {}
+if not StateManager.cob["exploit_store"][libname][libversion] then return {}
+return StateManager.cob["exploit_store"][libname][libversion]
+end function
+ExploitManager.check_libpath=function(meta_lib)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+c=StateManager.cob["home_object"]["computer"]
+home_path=StateManager.cob["home_path"]
+exploits_path=home_path+"/exploits"
+lib_path=exploits_path+"/"+libname
+version_path=lib_path+"/"+libversion
+// Function to create a directory if it doesn't exist
+check_dir=function(path,name)
+if not c.File(path+"/"+name) then
+c.create_folder(path,name)
+end if
+end function
+// Ensure the necessary directories exist
+check_dir(home_path,"exploits")
+check_dir(exploits_path,libname)
+check_dir(lib_path,libversion)
+end function
+ExploitManager.check_exploit=function(meta_lib,address=null)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+if not StateManager.cob["exploit_store"].hasIndex(libname) then return false
+if not StateManager.cob["exploit_store"][libname].hasIndex(libversion) then return false
+if address!=null and not StateManager.cob["exploit_store"][libname][libversion].hasIndex(address) then return false
+return true
+end function
+ExploitManager.load_exploit=function(meta_lib)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+self.check_libpath(meta_lib)
+exploits_path=home_path+"/exploits"
+lib_path=exploits_path+"/"+libname
+version_path=lib_path+"/"+libversion
+c=StateManager.cob["home_object"]["computer"]
+for file in c.File(version_path).get_files
+address=file.name
+string_exploits=file.get_content.split(char(10))
+for exploit in string_exploits
+exploit_data=exploit.split(" ")
+string=exploit_data[0]
+result_tuple=[exploit_data[1],exploit_data[2]]
+self.save_exploit(meta_lib,address,string,result_tuple)
+end for
+end for
+end function
+ExploitManager.store_exploits=function(meta_lib)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+if not StateManager.cob["exploit_store"].hasIndex(libname) then return 
+if not StateManager.cob["exploit_store"][libname].hasIndex(libversion) then return 
+c=StateManager.cob["home_object"]["computer"]
+self.check_libpath(meta_lib)
+// Iterate over addresses and write exploit data
+for address in StateManager.cob["exploit_store"][libname][libversion].indexes
+address_path=version_path+"/"+address
+if not c.File(address_path) then
+c.touch(version_path,address)
+end if
+string_exploits=""
+for string in StateManager.cob["exploit_store"][libname][libversion][address].indexes
+result_tuple=StateManager.cob["exploit_store"][libname][libversion][address][string]
+string_exploits=string_exploits+string+" "+result_tuple[0]+" "+result_tuple[1]+char(10)
+end for
+c.File(address_path).set_content(string_exploits)
+end for
+end function
+////////////////////////////////////////////////////
+ExploitCommands={}
+ExploitCommands.classID="ExploitCommands"
+ExploitCommands.shotgun_port=function(args)
+ip=args["ip"]
+port=args["port"]
+opt_val=args["opt_val"]
+if typeof(port.to_int)!="number" then return "Invalid port: "+port
+if port.to_int==0 then
+local_ip=get_router(ip).local_ip
+else
+local_ip=get_router(ip).device_ports.first("port_number",port.to_int).get_lan_ip
+end if
+meta_lib=ExploitManager.remote_lib(ip,port)
+if typeof(meta_lib)=="string" then return meta_lib
+// Check if the library is already stored
+if not ExploitManager.check_exploit(meta_lib) then
+addresses=ExploitManager.get_addresses(meta_lib)
+else
+addresses=StateManager.cob["exploit_store"][meta_lib.lib_name][meta_lib.version].indexes
+end if
+for address in addresses
+if not ExploitManager.check_exploit(meta_lib,address) then
+unparsed=StateManager.cob["remote_metax"].scan_address(meta_lib,address)
+strings=ExploitManager.parse_address(unparsed)
+else
+strings=StateManager.cob["exploit_store"][meta_lib.lib_name][meta_lib.version][address].indexes
+end if
+for string in strings
+object=meta_lib.overflow(address,string,opt_val)
+StateManager.set_object(object)
+StateManager.cob["focused_object"]["info"]["pub_ip"]=ip
+StateManager.cob["focused_object"]["info"]["local_ip"]=local_ip
+ExploitManager.save_exploit(meta_lib,address,string,["unknown",typeof(object)])
+end for
+end for
+end function
+MiniClick.create_command("shotgun","Shotgun a port for exploits").add_argument("ip","The IP address to target").add_argument("port","The port to target").add_option("opt_val","The value to pass to the exploit","192.168.0.1","o").set_function(ExploitCommands["shotgun_port"]).build
 ////////////////////////////////////////////////////
 FileCommands={}
 FileCommands.classID="FileCommands"
@@ -498,6 +677,7 @@ end while
 path=path[1:]
 end if
 for step in path
+if step=="" then continue
 if step==".." then
 if temp_file.parent!=null then
 temp_file=temp_file.parent
@@ -638,16 +818,16 @@ if typeof(result)=="string" then
 return "Error moving file: "+result
 end if
 end function
-MiniClick.createCommand("cat","Read the contents of a file").addArgument("filename","The name of the file to read").setFunction(FileCommands["read_file"]).build
-MiniClick.createCommand("write","Write to a file").addArgument("filename","The name of the file to write to").addArgument("content","The content to write",true).setFunction(FileCommands["write_file"]).build
-MiniClick.createCommand("ls","List files in the current directory").setFunction(FileCommands["list_files"]).build
-MiniClick.createCommand("cd","Change the current directory").addArgument("path","The path to change to").setFunction(FileCommands["change_dir"]).build
-MiniClick.createCommand("rm","Delete a file").addArgument("filename","The name of the file to delete").setFunction(FileCommands["delete_file"]).build
-MiniClick.createCommand("chmod","Change file permissions").addArgument("filename","The name of the file to change permissions for").addArgument("permissions","The new permissions (octal, not rwx)").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_perms"]).build
-MiniClick.createCommand("chgrp","Change file group").addArgument("filename","The name of the file to change group for").addArgument("group","The new group").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_group"]).build
-MiniClick.createCommand("chown","Change file owner").addArgument("filename","The name of the file to change owner for").addArgument("owner","The new owner").addOption("recursive","Apply changes recursively",false,"r").setFunction(FileCommands["change_owner"]).build
-MiniClick.createCommand("cp","Copy a file").addArgument("filename","The name of the file to copy").addArgument("destination","The destination folder").addArgument("newname","The new name of the file").setFunction(FileCommands["copy_file"]).build
-MiniClick.createCommand("mv","Move a file").addArgument("filename","The name of the file to move").addArgument("destination","The destination folder").addArgument("newname","The new name of the file").setFunction(FileCommands["move_file"]).build
+MiniClick.create_command("cat","Read the contents of a file").add_argument("filename","The name of the file to read").set_function(FileCommands["read_file"]).build
+MiniClick.create_command("write","Write to a file").add_argument("filename","The name of the file to write to").add_argument("content","The content to write",true).set_function(FileCommands["write_file"]).build
+MiniClick.create_command("ls","List files in the current directory").set_function(FileCommands["list_files"]).build
+MiniClick.create_command("cd","Change the current directory").add_argument("path","The path to change to").set_function(FileCommands["change_dir"]).build
+MiniClick.create_command("rm","Delete a file").add_argument("filename","The name of the file to delete").set_function(FileCommands["delete_file"]).build
+MiniClick.create_command("chmod","Change file permissions").add_argument("filename","The name of the file to change permissions for").add_argument("permissions","The new permissions (octal, not rwx)").add_option("recursive","Apply changes recursively",false,"r").set_function(FileCommands["change_perms"]).build
+MiniClick.create_command("chgrp","Change file group").add_argument("filename","The name of the file to change group for").add_argument("group","The new group").add_option("recursive","Apply changes recursively",false,"r").set_function(FileCommands["change_group"]).build
+MiniClick.create_command("chown","Change file owner").add_argument("filename","The name of the file to change owner for").add_argument("owner","The new owner").add_option("recursive","Apply changes recursively",false,"r").set_function(FileCommands["change_owner"]).build
+MiniClick.create_command("cp","Copy a file").add_argument("filename","The name of the file to copy").add_argument("destination","The destination folder").add_argument("newname","The new name of the file").set_function(FileCommands["copy_file"]).build
+MiniClick.create_command("mv","Move a file").add_argument("filename","The name of the file to move").add_argument("destination","The destination folder").add_argument("newname","The new name of the file").set_function(FileCommands["move_file"]).build
 ////////////////////////////////////////////////////
 ComputerCommands={}
 ComputerCommands.classID="ComputerCommands"
@@ -713,14 +893,14 @@ path=args["path"]
 foldername=args["foldername"]
 return StateManager.cob["focused_object"]["computer"].create_folder(path,foldername)
 end function
-MiniClick.createCommand("ps","View running processes").setFunction(ComputerCommands["view_procs"]).build
-MiniClick.createCommand("kill","Kill a running process").addArgument("pid","The PID of the process to kill").setFunction(ComputerCommands["kill_proc"]).build
-MiniClick.createCommand("adduser","Add a new user").addArgument("username","The username of the new user").addArgument("password","The password of the new user").setFunction(ComputerCommands["add_user"]).build
-MiniClick.createCommand("deluser","Delete a user").addArgument("username","The user to delete").addOption("remove_home","Remove the user's home directory",false,"r").setFunction(ComputerCommands["remove_user"]).build
-MiniClick.createCommand("addgroup","Add a new group").addArgument("username","The user to add to the group").addArgument("groupname","The name of the new group").setFunction(ComputerCommands["add_group"]).build
-MiniClick.createCommand("delgroup","Delete a group").addArgument("username","The user to remove from the group").addArgument("groupname","The name of the group to delete").setFunction(ComputerCommands["remove_group"]).build
-MiniClick.createCommand("touch","Create a new file").addArgument("path","The path to create the file in").addArgument("filename","The name of the new file").setFunction(ComputerCommands["create_file"]).build
-MiniClick.createCommand("mkdir","Create a new folder").addArgument("path","The path to create the folder in").addArgument("foldername","The name of the new folder").setFunction(ComputerCommands["create_folder"]).build
+MiniClick.create_command("ps","View running processes").set_function(ComputerCommands["view_procs"]).build
+MiniClick.create_command("kill","Kill a running process").add_argument("pid","The PID of the process to kill").set_function(ComputerCommands["kill_proc"]).build
+MiniClick.create_command("adduser","Add a new user").add_argument("username","The username of the new user").add_argument("password","The password of the new user").set_function(ComputerCommands["add_user"]).build
+MiniClick.create_command("deluser","Delete a user").add_argument("username","The user to delete").add_option("remove_home","Remove the user's home directory",false,"r").set_function(ComputerCommands["remove_user"]).build
+MiniClick.create_command("addgroup","Add a new group").add_argument("username","The user to add to the group").add_argument("groupname","The name of the new group").set_function(ComputerCommands["add_group"]).build
+MiniClick.create_command("delgroup","Delete a group").add_argument("username","The user to remove from the group").add_argument("groupname","The name of the group to delete").set_function(ComputerCommands["remove_group"]).build
+MiniClick.create_command("touch","Create a new file").add_argument("path","The path to create the file in").add_argument("filename","The name of the new file").set_function(ComputerCommands["create_file"]).build
+MiniClick.create_command("mkdir","Create a new folder").add_argument("path","The path to create the folder in").add_argument("foldername","The name of the new folder").set_function(ComputerCommands["create_folder"]).build
 ////////////////////////////////////////////////////
 ShellCommands={}
 ShellCommands.classID="ShellCommands"
@@ -788,12 +968,12 @@ if typeof(is_pingable)=="string" then return is_pingable
 if is_pingable then return "Ping successful."
 return "Ping failed."
 end function
-MiniClick.createCommand("shell","Drop to a shell").setFunction(ShellCommands["drop_shell"]).build
-MiniClick.createCommand("build","Build a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("can_import","Allow the file to be imported",false,"i").setFunction(ShellCommands["build_file"]).build
-MiniClick.createCommand("get","Get a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("to_relative","Put the file in your current relative shell",false,"r").setFunction(ShellCommands["get_file"]).build
-MiniClick.createCommand("put","Put a file").addArgument("source_path","The path to the source file").addArgument("destination_path","The path to the destination folder").addOption("from_relative","Get the file from your current relative shell",false,"r").setFunction(ShellCommands["put_file"]).build
-MiniClick.createCommand("launch","Run an external program").addArgument("program","The program to run").addArgument("params","The parameters to pass to the program",true).setFunction(ShellCommands["run_command"]).build
-MiniClick.createCommand("ping","Ping an IP address").addArgument("ip","The IP address to ping").setFunction(ShellCommands["try_ping"]).build
+MiniClick.create_command("shell","Drop to a shell").set_function(ShellCommands["drop_shell"]).build
+MiniClick.create_command("build","Build a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("can_import","Allow the file to be imported",false,"i").set_function(ShellCommands["build_file"]).build
+MiniClick.create_command("get","Get a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("to_relative","Put the file in your current relative shell",false,"r").set_function(ShellCommands["get_file"]).build
+MiniClick.create_command("put","Put a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("from_relative","Get the file from your current relative shell",false,"r").set_function(ShellCommands["put_file"]).build
+MiniClick.create_command("launch","Run an external program").add_argument("program","The program to run").add_argument("params","The parameters to pass to the program",true).set_function(ShellCommands["run_command"]).build
+MiniClick.create_command("ping","Ping an IP address").add_argument("ip","The IP address to ping").set_function(ShellCommands["try_ping"]).build
 ////////////////////////////////////////////////////
 // Basic testing usage
 ////////////////////////////////////////////////////
@@ -807,6 +987,11 @@ if command=="exit" then
 break
 end if
 command=command.split(" ")
+for i in command
+if i=="" then
+command.remove(i)
+end if
+end for
 result=MiniClick.run(command)
 if result!=null then
 print(result)
