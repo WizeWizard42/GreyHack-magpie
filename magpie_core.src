@@ -638,8 +638,9 @@ ExploitManager.parse_address = function(unparsed)
 end function
 
 ExploitManager.verify_tuple = function(tuple)
-    if not hasIndex(["root", "user", "guest", "unknown"], tuple[0]) then return false
-    if not hasIndex(["shell", "computer", "file", "number"], tuple[1]) then return false
+    if tuple.len != 2 then return false
+    if not indexOf(["root", "user", "guest", "unknown"], tuple[0]) == null then return false
+    if not indexOf(["shell", "computer", "file", "number"], tuple[1]) == null then return false
     return true
 end function
 
@@ -647,8 +648,7 @@ ExploitManager.save_exploit = function(meta_lib, address, string, result_tuple)
     libname = meta_lib.lib_name
     libversion = meta_lib.version
 
-    // This always returns false for some reason, so it's commented out for now
-    //if not self.verify_tuple(result_tuple) then return "Invalid tuple: " + result_tuple
+    if not self.verify_tuple(result_tuple) then return "Invalid tuple: " + result_tuple
     
     if not StateManager.cob["exploit_store"].hasIndex(libname) then
         StateManager.cob["exploit_store"][libname] = {}
@@ -806,6 +806,43 @@ ExploitCommands.shotgun_port = function(args)
             ExploitManager.save_exploit(meta_lib, address, string, ["unknown", typeof(object)])
         end for
     end for
+end function
+
+ExploitCommands.target_port = function(args)
+    ip = args["ip"]
+    port = args["port"]
+    opt_val = args["opt_val"]
+
+    if typeof(port.to_int) != "number" then return "Invalid port: " + port
+
+    if port.to_int == 0 then 
+        local_ip = get_router(ip).local_ip
+    else
+        local_ip = get_router(ip).device_ports.first("port_number", port.to_int).get_lan_ip
+    end if
+
+    meta_lib = ExploitManager.remote_lib(ip, port)
+
+    if typeof(meta_lib) == "string" then return meta_lib
+
+    // Check if the library is already stored
+    if not ExploitManager.check_exploit(meta_lib) then
+        confirm = user_input("Library not stored. Would you like to shotgun it? (y/n): ")
+        if confirm == "y" then
+            return ExploitCommands["shotgun_port"](args)
+        end if
+    end if
+
+    // Load exploits from file
+    ExploitManager.load_exploit(meta_lib)
+
+    // Get exploits from store
+    exploits = ExploitManager.get_exploits(meta_lib)
+
+    // TODO: Implement exploit selection
+
+    print("Rest of function not implemented.")
+    print(exploits)
 end function
 
 MiniClick.create_command("shotgun", "Shotgun a port for exploits").
