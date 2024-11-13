@@ -313,7 +313,7 @@ StateManager.classID="StateManager"
 StateManager.cob=@get_custom_object
 // Persistent storage for the state manager
 StateManager.init=function
-if not self.cob.hasIndex("focused_object") then
+if not self.cob["focused_object"]["file"].hasIndex("is_folder") then
 self.first_layer
 return 
 end if
@@ -324,19 +324,23 @@ MiniClick.run("put "+self.cob["home_path"]+"/metaxploit.so "+current_path)
 self.cob["remote_metax"]=include_lib(current_path+"/metaxploit.so")
 end function
 StateManager.first_layer=function
+if StateManager.cob!={} then exit("Check failed: get_custom_object() is not empty!")
 self.cob["aptclient"]=include_lib(current_path+"/aptclient.so")
 if self.cob["aptclient"]==null then exit("aptclient.so needs to be in the same directory as the script!")
 self.cob["aptclient"].update
 if self.cob["aptclient"].check_upgrade(current_path+"/librshell.so") then
-self.cob["aptclient"].upgrade("librshell.so",current_path)
+self.cob["aptclient"].install("librshell.so",current_path)
 end if
 if self.cob["aptclient"].check_upgrade(current_path+"/metaxploit.so") then
-self.cob["aptclient"].upgrade("metaxploit.so",current_path)
+self.cob["aptclient"].install("metaxploit.so",current_path)
+end if
+if self.cob["aptclient"].check_upgrade(current_path+"/crypto.so") then
+self.cob["aptclient"].install("crypto.so",current_path)
 end if
 self.cob["home_metax"]=include_lib(current_path+"/metaxploit.so")
 self.cob["remote_metax"]=include_lib(current_path+"/metaxploit.so")
 self.cob["exploit_store"]={}
-// Structure: {"libname": {"version": [{"address": {"string": ["root/user/guest", "shell/computer/file"], "string": ["root/user/guest", "shell/computer/file"]}, ...}]}}
+// Structure: {"libname": {"version": {"address": {"string": ["root/user/guest", "shell/computer/file"], "string": ["root/user/guest", "shell/computer/file"]}, ...}}}
 self.cob["remote_rlib"]=null
 // Only sets once reverse shell is manually set
 self.cob["home_path"]=current_path
@@ -351,22 +355,21 @@ self.cob["relative_object"]=self.cob["focused_object"]
 end function
 StateManager.set_object=function(object)
 type=typeof(object)
+if type=="number" then return type
+if type=="null" then return "unknown"
 if type=="shell" then
 self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.host_computer.File("/"),"computer":object.host_computer,"shell":object,"info":{"user":"unknown","domain":object.host_computer.get_name,"pub_ip":object.host_computer.public_ip,"local_ip":object.host_computer.local_ip}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
-return 
 end if
 if type=="computer" then
 self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.File("/"),"computer":object,"shell":null,"info":{"user":"unknown","domain":object.get_name,"pub_ip":object.public_ip,"local_ip":object.local_ip}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
-return 
 end if
 if type=="file" then
 self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object,"computer":null,"shell":null,"info":{"user":"unknown","domain":"unknown","pub_ip":"unknown","local_ip":"unknown"}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
-return 
 end if
-if type!="file" and type!="computer" and type!="shell" then return "Invalid object type: "+type
+return type
 end function
 ////////////////////////////////////////////////////
 StateCommands={}
@@ -467,7 +470,7 @@ ExploitManager.local_lib=function(path)
 return StateManager.cob["remote_metax"].load(path)
 end function
 ExploitManager.get_addresses=function(meta_lib)
-return StateManager.cob["remote_metax"].scan(meta_lib)
+return StateManager.cob["home_metax"].scan(meta_lib)
 end function
 ExploitManager.parse_address=function(unparsed)
 segments=unparsed.split("Unsafe check: ")[1:]
@@ -479,15 +482,13 @@ end for
 return parsed
 end function
 ExploitManager.verify_tuple=function(tuple)
-if not hasIndex(["root","user","guest","unknown"],tuple[0]) then return false
-if not hasIndex(["shell","computer","file","number"],tuple[1]) then return false
+if tuple.len!=2 then return false
+if indexOf(["root","user","guest","unknown"],tuple[0])==null then return false
+if indexOf(["shell","computer","file","number"],tuple[1])==null then return false
 return true
 end function
-ExploitManager.save_exploit=function(meta_lib,address,string,result_tuple)
-libname=meta_lib.lib_name
-libversion=meta_lib.version
-// This always returns false for some reason, so it's commented out for now
-//if not self.verify_tuple(result_tuple) then return "Invalid tuple: " + result_tuple
+ExploitManager.save_exploit=function(libname,libversion,address,string,result_tuple)
+if not self.verify_tuple(result_tuple) then return "Invalid tuple: "+result_tuple
 if not StateManager.cob["exploit_store"].hasIndex(libname) then
 StateManager.cob["exploit_store"][libname]={}
 end if
@@ -499,16 +500,13 @@ StateManager.cob["exploit_store"][libname][libversion][address]={}
 end if
 StateManager.cob["exploit_store"][libname][libversion][address][string]=result_tuple
 end function
-ExploitManager.get_exploits=function(meta_lib)
-libname=meta_lib.lib_name
-libversion=meta_lib.version
+ExploitManager.get_exploits=function(libname,libversion)
 if not StateManager.cob["exploit_store"][libname] then return {}
 if not StateManager.cob["exploit_store"][libname][libversion] then return {}
 return StateManager.cob["exploit_store"][libname][libversion]
 end function
-ExploitManager.check_libpath=function(meta_lib)
-libname=meta_lib.lib_name
-libversion=meta_lib.version
+// Returns whether the library directory exists, and creates it if it doesn't
+ExploitManager.check_libpath=function(libname,libversion)
 c=StateManager.cob["home_object"]["computer"]
 home_path=StateManager.cob["home_path"]
 exploits_path=home_path+"/exploits"
@@ -518,47 +516,42 @@ version_path=lib_path+"/"+libversion
 check_dir=function(path,name)
 if not c.File(path+"/"+name) then
 c.create_folder(path,name)
+return false
 end if
+return true
 end function
 // Ensure the necessary directories exist
 check_dir(home_path,"exploits")
 check_dir(exploits_path,libname)
-check_dir(lib_path,libversion)
+// If version directory doesn't exist (version hasn't been stored), create it and return false
+return check_dir(lib_path,libversion)
 end function
-ExploitManager.check_exploit=function(meta_lib,address=null)
-libname=meta_lib.lib_name
-libversion=meta_lib.version
+ExploitManager.check_exploit=function(libname,libversion,address=null)
 if not StateManager.cob["exploit_store"].hasIndex(libname) then return false
 if not StateManager.cob["exploit_store"][libname].hasIndex(libversion) then return false
 if address!=null and not StateManager.cob["exploit_store"][libname][libversion].hasIndex(address) then return false
 return true
 end function
-ExploitManager.load_exploit=function(meta_lib)
-libname=meta_lib.lib_name
-libversion=meta_lib.version
-self.check_libpath(meta_lib)
-exploits_path=home_path+"/exploits"
-lib_path=exploits_path+"/"+libname
-version_path=lib_path+"/"+libversion
+ExploitManager.load_exploit=function(libname,libversion)
+self.check_libpath(libname,libversion)
+version_path=StateManager.cob["home_path"]+"/exploits/"+libname+"/"+libversion
 c=StateManager.cob["home_object"]["computer"]
 for file in c.File(version_path).get_files
 address=file.name
-string_exploits=file.get_content.split(char(10))
+string_exploits=file.get_content.split(char(10))[:-1]
 for exploit in string_exploits
 exploit_data=exploit.split(" ")
 string=exploit_data[0]
-result_tuple=[exploit_data[1],exploit_data[2]]
-self.save_exploit(meta_lib,address,string,result_tuple)
+self.save_exploit(libname,libversion,address,string,[exploit_data[1],exploit_data[2]])
 end for
 end for
 end function
-ExploitManager.store_exploits=function(meta_lib)
-libname=meta_lib.lib_name
-libversion=meta_lib.version
+ExploitManager.store_exploits=function(libname,libversion)
 if not StateManager.cob["exploit_store"].hasIndex(libname) then return 
 if not StateManager.cob["exploit_store"][libname].hasIndex(libversion) then return 
 c=StateManager.cob["home_object"]["computer"]
-self.check_libpath(meta_lib)
+self.check_libpath(libname,libversion)
+version_path=StateManager.cob["home_path"]+"/exploits/"+libname+"/"+libversion
 // Iterate over addresses and write exploit data
 for address in StateManager.cob["exploit_store"][libname][libversion].indexes
 address_path=version_path+"/"+address
@@ -573,10 +566,74 @@ end for
 c.File(address_path).set_content(string_exploits)
 end for
 end function
+ExploitManager.shotgun_lib=function(meta_lib,opt_val,info)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+// Check if the library is already stored
+if not ExploitManager.check_exploit(libname,libversion) then
+addresses=ExploitManager.get_addresses(meta_lib)
+else
+addresses=StateManager.cob["exploit_store"][libname][libversion].indexes
+end if
+for address in addresses
+if not ExploitManager.check_exploit(libname,libversion,address) then
+unparsed=StateManager.cob["home_metax"].scan_address(meta_lib,address)
+strings=ExploitManager.parse_address(unparsed)
+else
+strings=StateManager.cob["exploit_store"][libname][libversion][address].indexes
+end if
+for string in strings
+object=meta_lib.overflow(address,string,opt_val)
+type=StateManager.set_object(object)
+StateManager["focused"]
+ExploitManager.save_exploit(libname,libversion,address,string,["unknown",type])
+end for
+end for
+end function
+// Show user list of exploits and what they return, then prompt for exploit and focus on it
+ExploitManager.prompt_exploit=function(meta_lib,exploits,opt_val=null,info=null)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+result=""
+exploit_list=[]
+for address in exploits.indexes
+result=result+address+char(10)
+for string in exploits[address].indexes
+exploit_list.push([address,string])
+result=result+"  "+exploit_list.len+": "+string+" -> "+exploits[address][string][0]+" "+exploits[address][string][1]+char(10)
+end for
+end for
+result=result+char(10)
+while true
+print(result)
+choice=user_input("Select an exploit (e to exit): ")
+if choice=="e" then return 
+if typeof(choice.to_int)=="number" then
+choice=choice.to_int
+if choice<1 or choice>exploit_list.len then
+print("Invalid choice: "+choice)
+continue
+end if
+exploit=exploit_list[choice-1]
+type=StateManager.set_object(meta_lib.overflow(exploit[0],exploit[1],opt_val))
+if type=="file" then
+StateManager.cob["focused_object"]["info"]["pub_ip"]=info["pub_ip"]
+StateManager.cob["focused_object"]["info"]["local_ip"]=info["local_ip"]
+end if
+if type!="null" and type!=StateManager.cob["exploit_store"][libname][libversion][exploit[0]][exploit[1]][1] then
+ExploitManager.save_exploit(libname,libversion,exploit[0],exploit[1],["unknown",type])
+ExploitManager.store_exploits(libname,libversion)
+end if
+break
+else
+print("Invalid choice: "+choice)
+end if
+end while
+end function
 ////////////////////////////////////////////////////
 ExploitCommands={}
 ExploitCommands.classID="ExploitCommands"
-ExploitCommands.shotgun_port=function(args)
+ExploitCommands.target_port=function(args)
 ip=args["ip"]
 port=args["port"]
 opt_val=args["opt_val"]
@@ -587,30 +644,46 @@ else
 local_ip=get_router(ip).device_ports.first("port_number",port.to_int).get_lan_ip
 end if
 meta_lib=ExploitManager.remote_lib(ip,port)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
 if typeof(meta_lib)=="string" then return meta_lib
 // Check if the library is already stored
-if not ExploitManager.check_exploit(meta_lib) then
-addresses=ExploitManager.get_addresses(meta_lib)
+if ExploitManager.check_libpath(libname,libversion) then
+ExploitManager.load_exploit(libname,libversion)
 else
-addresses=StateManager.cob["exploit_store"][meta_lib.lib_name][meta_lib.version].indexes
+confirm=user_input("Library not stored. Would you like to shotgun it? (y/n): ")
+if confirm=="y" then
+return ExploitManager.shotgun_lib(meta_lib,opt_val)
 end if
-for address in addresses
-if not ExploitManager.check_exploit(meta_lib,address) then
-unparsed=StateManager.cob["remote_metax"].scan_address(meta_lib,address)
-strings=ExploitManager.parse_address(unparsed)
+return "Not attacking."
+end if
+// Get exploits from store, then prompt user to select one
+exploits=ExploitManager.get_exploits(libname,libversion)
+ExploitManager.prompt_exploit(meta_lib,exploits,opt_val,{"pub_ip":ip,"local_ip":local_ip})
+end function
+ExploitCommands.local_attack=function(args)
+path=args["path"]
+opt_val=args["opt_val"]
+meta_lib=ExploitManager.local_lib(path)
+libname=meta_lib.lib_name
+libversion=meta_lib.version
+if typeof(meta_lib)=="string" then return meta_lib
+// Check if the library is already stored
+if ExploitManager.check_libpath(libname,libversion) then
+ExploitManager.load_exploit(libname,libversion)
 else
-strings=StateManager.cob["exploit_store"][meta_lib.lib_name][meta_lib.version][address].indexes
+confirm=user_input("Library not stored. Would you like to shotgun it? (y/n): ")
+if confirm=="y" then
+return ExploitManager.shotgun_lib(meta_lib,opt_val)
 end if
-for string in strings
-object=meta_lib.overflow(address,string,opt_val)
-StateManager.set_object(object)
-StateManager.cob["focused_object"]["info"]["pub_ip"]=ip
-StateManager.cob["focused_object"]["info"]["local_ip"]=local_ip
-ExploitManager.save_exploit(meta_lib,address,string,["unknown",typeof(object)])
-end for
-end for
+return "Not attacking."
+end if
+// Get exploits from store, then prompt user to select one
+exploits=ExploitManager.get_exploits(libname,libversion)
+ExploitManager.prompt_exploit(meta_lib,exploits,opt_val,{"pub_ip":StateManager.cob["relative_object"]["info"]["pub_ip"],"local_ip":StateManager.cob["relative_object"]["info"]["local_ip"]})
 end function
 MiniClick.create_command("shotgun","Shotgun a port for exploits").add_argument("ip","The IP address to target").add_argument("port","The port to target").add_option("opt_val","The value to pass to the exploit","192.168.0.1","o").set_function(ExploitCommands["shotgun_port"]).build
+MiniClick.create_command("target","Target a port for exploits").add_argument("ip","The IP address to target").add_argument("port","The port to target").add_option("opt_val","The value to pass to the exploit","192.168.0.1","o").set_function(ExploitCommands["target_port"]).build
 ////////////////////////////////////////////////////
 FileCommands={}
 FileCommands.classID="FileCommands"
@@ -677,6 +750,7 @@ end while
 path=path[1:]
 end if
 for step in path
+step=step.trim
 if step=="" then continue
 if step==".." then
 if temp_file.parent!=null then
@@ -707,6 +781,21 @@ if result!="" then
 return "Error deleting file: "+result
 end if
 return "File deleted: "+filename
+end function
+FileCommands.delete_dir=function(args)
+if StateManager.cob["focused_object"]["file"]==null then
+return "File object not set."
+end if
+dirname=args["dirname"]
+file=StateManager.cob["focused_object"]["file"].get_folders.first("name",dirname)
+if file==null then
+return "Folder not found: "+dirname
+end if
+result=file.delete
+if result!="" then
+return "Error deleting folder: "+result
+end if
+return "Folder deleted: "+dirname
 end function
 FileCommands.change_perms=function(args)
 if StateManager.cob["focused_object"]["file"]==null then
@@ -823,6 +912,7 @@ MiniClick.create_command("write","Write to a file").add_argument("filename","The
 MiniClick.create_command("ls","List files in the current directory").set_function(FileCommands["list_files"]).build
 MiniClick.create_command("cd","Change the current directory").add_argument("path","The path to change to").set_function(FileCommands["change_dir"]).build
 MiniClick.create_command("rm","Delete a file").add_argument("filename","The name of the file to delete").set_function(FileCommands["delete_file"]).build
+MiniClick.create_command("rmdir","Delete a folder").add_argument("dirname","The name of the folder to delete").set_function(FileCommands["delete_dir"]).build
 MiniClick.create_command("chmod","Change file permissions").add_argument("filename","The name of the file to change permissions for").add_argument("permissions","The new permissions (octal, not rwx)").add_option("recursive","Apply changes recursively",false,"r").set_function(FileCommands["change_perms"]).build
 MiniClick.create_command("chgrp","Change file group").add_argument("filename","The name of the file to change group for").add_argument("group","The new group").add_option("recursive","Apply changes recursively",false,"r").set_function(FileCommands["change_group"]).build
 MiniClick.create_command("chown","Change file owner").add_argument("filename","The name of the file to change owner for").add_argument("owner","The new owner").add_option("recursive","Apply changes recursively",false,"r").set_function(FileCommands["change_owner"]).build
@@ -943,9 +1033,9 @@ source_path=args["source_path"]
 destination_path=args["destination_path"]
 from_relative=args["from_relative"]
 if from_relative then
-return scp(get_shell,destination_path,source_path,StateManager.cob["focused_object"]["shell"])
+return scp(get_shell,source_path,destination_path,StateManager.cob["focused_object"]["shell"])
 end if
-return scp(StateManager.home_shell,destination_path,source_path,StateManager.cob["focused_object"]["shell"])
+return scp(StateManager.cob["home_object"]["shell"],source_path,destination_path,StateManager.cob["focused_object"]["shell"])
 end function
 ShellCommands.run_command=function(args)
 if StateManager.cob["focused_object"]["shell"]==null then
@@ -968,22 +1058,44 @@ if typeof(is_pingable)=="string" then return is_pingable
 if is_pingable then return "Ping successful."
 return "Ping failed."
 end function
+ShellCommands.pivot_host=function(args)
+if StateManager.cob["focused_object"]["shell"]==null then
+return "Shell object not set."
+end if
+result=scp(StateManager.cob["home_object"]["shell"],StateManager.cob["home_path"]+"/magpie",StateManager.cob["focused_object"]["file"].path,StateManager.cob["focused_object"]["shell"])
+if typeof(result)=="string" then return result
+StateManager.cob["layer"]=StateManager.cob["layer"]+1
+result=launch(StateManager.cob["focused_object"]["shell"],StateManager.cob["focused_object"]["file"].path+"/magpie")
+if typeof(result)=="string" then
+StateManager.cob["layer"]=StateManager.cob["layer"]-1
+return result
+end if
+end function
 MiniClick.create_command("shell","Drop to a shell").set_function(ShellCommands["drop_shell"]).build
 MiniClick.create_command("build","Build a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("can_import","Allow the file to be imported",false,"i").set_function(ShellCommands["build_file"]).build
 MiniClick.create_command("get","Get a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("to_relative","Put the file in your current relative shell",false,"r").set_function(ShellCommands["get_file"]).build
 MiniClick.create_command("put","Put a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("from_relative","Get the file from your current relative shell",false,"r").set_function(ShellCommands["put_file"]).build
 MiniClick.create_command("launch","Run an external program").add_argument("program","The program to run").add_argument("params","The parameters to pass to the program",true).set_function(ShellCommands["run_command"]).build
 MiniClick.create_command("ping","Ping an IP address").add_argument("ip","The IP address to ping").set_function(ShellCommands["try_ping"]).build
+MiniClick.create_command("pivot","Pivot to current focus, if it's a shell").set_function(ShellCommands["pivot_host"]).build
 ////////////////////////////////////////////////////
 // Basic testing usage
 ////////////////////////////////////////////////////
 // Uncomment to enable File tests
 //#include testing/file_tests.src;
 StateManager.init
+// This whole thing will be rewritten, but works for now
 while true
 prompt_text=StateManager.cob["focused_object"].info.user+"@"+StateManager.cob["focused_object"].info.pub_ip+": "+StateManager.cob["focused_object"]["file"].path+"# "
 command=user_input(prompt_text).trim
 if command=="exit" then
+for lib in StateManager.cob["exploit_store"].indexes
+for version in StateManager.cob["exploit_store"][lib].indexes
+if not ExploitManager.check_libpath(lib,version) then
+ExploitManager.store_exploits(lib,version)
+end if
+end for
+end for
 break
 end if
 command=command.split(" ")
@@ -996,4 +1108,5 @@ result=MiniClick.run(command)
 if result!=null then
 print(result)
 end if
+StateManager.cob["layer"]=StateManager.cob["layer"]-1
 end while

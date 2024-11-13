@@ -357,7 +357,7 @@ StateManager.classID = "StateManager"
 StateManager.cob = @get_custom_object // Persistent storage for the state manager
 
 StateManager.init = function()
-    if not self.cob.hasIndex("focused_object") then 
+    if not self.cob["focused_object"]["file"].hasIndex("is_folder") then 
         self.first_layer()
         return
     end if
@@ -372,6 +372,8 @@ StateManager.init = function()
 end function
 
 StateManager.first_layer = function()
+    if StateManager.cob != {} then exit("Check failed: get_custom_object() is not empty!")
+
     self.cob["aptclient"] = include_lib(current_path + "/aptclient.so")
     if self.cob["aptclient"] == null then exit("aptclient.so needs to be in the same directory as the script!")
 
@@ -383,6 +385,10 @@ StateManager.first_layer = function()
 
     if self.cob["aptclient"].check_upgrade(current_path + "/metaxploit.so") then
         self.cob["aptclient"].install("metaxploit.so", current_path)
+    end if
+
+    if self.cob["aptclient"].check_upgrade(current_path + "/crypto.so") then
+        self.cob["aptclient"].install("crypto.so", current_path)
     end if
 
     self.cob["home_metax"] = include_lib(current_path + "/metaxploit.so")
@@ -622,7 +628,7 @@ ExploitManager.local_lib = function(path)
 end function
 
 ExploitManager.get_addresses = function(meta_lib)
-    return StateManager.cob["remote_metax"].scan(meta_lib)
+    return StateManager.cob["home_metax"].scan(meta_lib)
 end function
 
 ExploitManager.parse_address = function(unparsed)
@@ -639,13 +645,13 @@ end function
 
 ExploitManager.verify_tuple = function(tuple)
     if tuple.len != 2 then return false
-    if not (indexOf(["root", "user", "guest", "unknown"], tuple[0]) == null) then return false
-    if not (indexOf(["shell", "computer", "file", "number"], tuple[1]) == null) then return false
+    if indexOf(["root", "user", "guest", "unknown"], tuple[0]) == null then return false
+    if indexOf(["shell", "computer", "file", "number"], tuple[1]) == null then return false
     return true
 end function
 
 ExploitManager.save_exploit = function(libname, libversion, address, string, result_tuple)
-    //if not self.verify_tuple(result_tuple) then return "Invalid tuple: " + result_tuple
+    if not self.verify_tuple(result_tuple) then return "Invalid tuple: " + result_tuple
     
     if not StateManager.cob["exploit_store"].hasIndex(libname) then
         StateManager.cob["exploit_store"][libname] = {}
@@ -747,8 +753,39 @@ ExploitManager.store_exploits = function(libname, libversion)
     end for
 end function
 
+ExploitManager.shotgun_lib = function(meta_lib, opt_val, info)
+    libname = meta_lib.lib_name
+    libversion = meta_lib.version
+
+    // Check if the library is already stored
+    if not ExploitManager.check_exploit(libname, libversion) then
+        addresses = ExploitManager.get_addresses(meta_lib)
+    else
+        addresses = StateManager.cob["exploit_store"][libname][libversion].indexes
+    end if
+    
+    for address in addresses
+        if not ExploitManager.check_exploit(libname, libversion, address) then
+            unparsed = StateManager.cob["home_metax"].scan_address(meta_lib, address)
+            strings = ExploitManager.parse_address(unparsed)
+        else
+            strings = StateManager.cob["exploit_store"][libname][libversion][address].indexes
+        end if
+
+        for string in strings
+            object = meta_lib.overflow(address, string, opt_val)
+            type = StateManager.set_object(object)
+            StateManager["focused"]
+            ExploitManager.save_exploit(libname, libversion, address, string, ["unknown", type])
+        end for
+    end for
+end function
+
 // Show user list of exploits and what they return, then prompt for exploit and focus on it
-ExploitManager.prompt_exploit = function(meta_lib, exploits, opt_val = null)
+ExploitManager.prompt_exploit = function(meta_lib, exploits, opt_val = null, info = null)
+    libname = meta_lib.lib_name
+    libversion = meta_lib.version
+
     result = ""
     exploit_list = []
     for address in exploits.indexes
@@ -774,8 +811,13 @@ ExploitManager.prompt_exploit = function(meta_lib, exploits, opt_val = null)
             end if
             exploit = exploit_list[choice - 1]
             type = StateManager.set_object(meta_lib.overflow(exploit[0], exploit[1], opt_val))
-            if type != "null" and type != "unknown" then
-                ExploitManager.save_exploit(meta_lib.lib_name, meta_lib.version, exploit[0], exploit[1], ["unknown", type])
+            if type == "file" then
+                StateManager.cob["focused_object"]["info"]["pub_ip"] = info["pub_ip"]
+                StateManager.cob["focused_object"]["info"]["local_ip"] = info["local_ip"]
+            end if
+            if type != "null" and type != StateManager.cob["exploit_store"][libname][libversion][exploit[0]][exploit[1]][1] then
+                ExploitManager.save_exploit(libname, libversion, exploit[0], exploit[1], ["unknown", type])
+                ExploitManager.store_exploits(libname, libversion)
             end if
             break
         else
@@ -788,50 +830,6 @@ end function
 
 ExploitCommands = {}
 ExploitCommands.classID = "ExploitCommands"
-
-ExploitCommands.shotgun_port = function(args)
-    ip = args["ip"]
-    port = args["port"]
-    opt_val = args["opt_val"]
-
-    if typeof(port.to_int) != "number" then return "Invalid port: " + port
-
-    if port.to_int == 0 then 
-        local_ip = get_router(ip).local_ip
-    else
-        local_ip = get_router(ip).device_ports.first("port_number", port.to_int).get_lan_ip
-    end if
-
-    meta_lib = ExploitManager.remote_lib(ip, port)
-    if typeof(meta_lib) == "string" then return meta_lib
-
-    // Check if the library is already stored
-    if not ExploitManager.check_exploit(meta_lib.lib_name, meta_lib.version) then
-        addresses = ExploitManager.get_addresses(meta_lib)
-    else
-        addresses = StateManager.cob["exploit_store"][meta_lib.lib_name][meta_lib.version].indexes
-    end if
-    
-    for address in addresses
-        if not ExploitManager.check_exploit(meta_lib.lib_name, meta_lib.version, address) then
-            unparsed = StateManager.cob["remote_metax"].scan_address(meta_lib, address)
-            strings = ExploitManager.parse_address(unparsed)
-        else
-            strings = StateManager.cob["exploit_store"][meta_lib.lib_name][meta_lib.version][address].indexes
-        end if
-
-        for string in strings
-            object = meta_lib.overflow(address, string, opt_val)
-            type = StateManager.set_object(object)
-
-            if type != "number" and type != "unknown" then
-                StateManager.cob["focused_object"]["info"]["pub_ip"] = ip
-                StateManager.cob["focused_object"]["info"]["local_ip"] = local_ip
-            end if
-            ExploitManager.save_exploit(meta_lib.lib_name, meta_lib.version, address, string, ["unknown", type])
-        end for
-    end for
-end function
 
 ExploitCommands.target_port = function(args)
     ip = args["ip"]
@@ -858,14 +856,46 @@ ExploitCommands.target_port = function(args)
     else
         confirm = user_input("Library not stored. Would you like to shotgun it? (y/n): ")
         if confirm == "y" then
-            return ExploitCommands.shotgun_port(args)
+            return ExploitManager.shotgun_lib(meta_lib, opt_val)
         end if
         return "Not attacking."
     end if
 
     // Get exploits from store, then prompt user to select one
     exploits = ExploitManager.get_exploits(libname, libversion)
-    ExploitManager.prompt_exploit(meta_lib, exploits, opt_val)
+    ExploitManager.prompt_exploit(meta_lib, exploits, opt_val, {
+        "pub_ip": ip,
+        "local_ip": local_ip,
+    })
+end function
+
+ExploitCommands.local_attack = function(args)
+    path = args["path"]
+    opt_val = args["opt_val"]
+
+    meta_lib = ExploitManager.local_lib(path)
+    libname = meta_lib.lib_name
+    libversion = meta_lib.version
+
+    if typeof(meta_lib) == "string" then return meta_lib
+
+    // Check if the library is already stored
+    if ExploitManager.check_libpath(libname, libversion) then
+        ExploitManager.load_exploit(libname, libversion)
+    else
+        confirm = user_input("Library not stored. Would you like to shotgun it? (y/n): ")
+        if confirm == "y" then
+            return ExploitManager.shotgun_lib(meta_lib, opt_val)
+        end if
+        return "Not attacking."
+    end if
+
+    // Get exploits from store, then prompt user to select one
+    exploits = ExploitManager.get_exploits(libname, libversion)
+    ExploitManager.prompt_exploit(meta_lib, exploits, opt_val, {
+        "pub_ip": StateManager.cob["relative_object"]["info"]["pub_ip"],
+        "local_ip": StateManager.cob["relative_object"]["info"]["local_ip"],
+    })
 end function
 
 MiniClick.create_command("shotgun", "Shotgun a port for exploits").
@@ -961,6 +991,7 @@ FileCommands.change_dir = function(args)
     end if
 
     for step in path
+        step = step.trim
         if step == "" then continue
         if step == ".." then
             if temp_file.parent != null then
@@ -1389,10 +1420,10 @@ ShellCommands.put_file = function(args)
     from_relative = args["from_relative"]
 
     if from_relative then
-        return scp(get_shell, destination_path, source_path, StateManager.cob["focused_object"]["shell"])
+        return scp(get_shell, source_path, destination_path, StateManager.cob["focused_object"]["shell"])
     end if
 
-    return scp(StateManager.home_shell, destination_path, source_path, StateManager.cob["focused_object"]["shell"])
+    return scp(StateManager.cob["home_object"]["shell"], source_path, destination_path, StateManager.cob["focused_object"]["shell"])
 end function
 
 ShellCommands.run_command = function(args)
@@ -1420,6 +1451,23 @@ ShellCommands.try_ping = function(args)
     if is_pingable then return "Ping successful."
 
     return "Ping failed."
+end function
+
+ShellCommands.pivot_host = function(args)
+    if StateManager.cob["focused_object"]["shell"] == null then
+        return "Shell object not set."
+    end if
+
+    result = scp(StateManager.cob["home_object"]["shell"], StateManager.cob["home_path"] + "/magpie",
+        StateManager.cob["focused_object"]["file"].path, StateManager.cob["focused_object"]["shell"])
+    if typeof(result) == "string" then return result
+
+    StateManager.cob["layer"] = StateManager.cob["layer"] + 1
+    result = launch(StateManager.cob["focused_object"]["shell"], StateManager.cob["focused_object"]["file"].path + "/magpie")
+    if typeof(result) == "string" then
+        StateManager.cob["layer"] = StateManager.cob["layer"] - 1
+        return result
+    end if
 end function
 
 MiniClick.create_command("shell", "Drop to a shell").
@@ -1456,6 +1504,10 @@ MiniClick.create_command("launch", "Run an external program").
 MiniClick.create_command("ping", "Ping an IP address").
     add_argument("ip", "The IP address to ping").
     set_function(ShellCommands["try_ping"]).
+    build()
+
+MiniClick.create_command("pivot", "Pivot to current focus, if it's a shell").
+    set_function(ShellCommands["pivot_host"]).
     build()
 
 ////////////////////////////////////////////////////
@@ -1495,4 +1547,6 @@ while true
     if result != null then
         print(result)
     end if
+
+    StateManager.cob["layer"] = StateManager.cob["layer"] - 1
 end while
