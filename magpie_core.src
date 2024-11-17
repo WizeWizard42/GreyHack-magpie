@@ -667,8 +667,8 @@ ExploitManager.save_exploit = function(libname, libversion, address, string, res
 end function
 
 ExploitManager.get_exploits = function(libname, libversion)
-    if not StateManager.cob["exploit_store"][libname] then return {}
-    if not StateManager.cob["exploit_store"][libname][libversion] then return {}
+    if not StateManager.cob["exploit_store"].hasIndex(libname) then return {}
+    if not StateManager.cob["exploit_store"][libname].hasIndex(libversion) then return {}
 
     return StateManager.cob["exploit_store"][libname][libversion]
 end function
@@ -837,6 +837,7 @@ ExploitCommands.target_port = function(args)
     port = args["port"]
     opt_val = args["opt_val"]
 
+    if not is_valid_ip(ip) then return "Invalid IP: " + ip
     if typeof(port.to_int) != "number" then return "Invalid port: " + port
 
     if port.to_int == 0 then 
@@ -1527,13 +1528,15 @@ while true
 
     command = user_input(prompt_text).trim
     if command == "exit" then
-        for lib in StateManager.cob["exploit_store"].indexes
-            for version in StateManager.cob["exploit_store"][lib].indexes
-                if not ExploitManager.check_libpath(lib, version) then
-                    ExploitManager.store_exploits(lib, version)
-                end if
+        if StateManager.cob["layer"] == 0 then
+            for lib in StateManager.cob["exploit_store"].indexes
+                for version in StateManager.cob["exploit_store"][lib].indexes
+                    if not ExploitManager.check_libpath(lib, version) then
+                        ExploitManager.store_exploits(lib, version)
+                    end if
+                end for
             end for
-        end for
+        end if
         break
     end if
     command = command.split(" ")
