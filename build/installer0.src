@@ -313,18 +313,17 @@ StateManager.classID=""StateManager""
 StateManager.cob=@get_custom_object
 // Persistent storage for the state manager
 StateManager.init=function
-if not self.cob[""focused_object""][""file""].hasIndex(""is_folder"") then
+if not self.cob.hasIndex(""layer"") then
 self.first_layer
 return 
 end if
 self.cob.layer=self.cob.layer+1
-self.cob[""relative_object""]=self.cob[""focused_object""]
+self[""relative_object""]=self.cob[""focused_object""]
 MiniClick.run(""put ""+self.cob[""home_path""]+""/librshell.so ""+current_path)
 MiniClick.run(""put ""+self.cob[""home_path""]+""/metaxploit.so ""+current_path)
 self.cob[""remote_metax""]=include_lib(current_path+""/metaxploit.so"")
 end function
 StateManager.first_layer=function
-if StateManager.cob!={} then exit(""Check failed: get_custom_object() is not empty!"")
 self.cob[""aptclient""]=include_lib(current_path+""/aptclient.so"")
 if self.cob[""aptclient""]==null then exit(""aptclient.so needs to be in the same directory as the script!"")
 self.cob[""aptclient""].update
@@ -351,7 +350,7 @@ self.cob[""plugin_stores""]={}
 self.set_object(get_shell)
 self.cob[""focused_object""].info.user=active_user
 self.cob[""home_object""]=self.cob[""focused_object""]
-self.cob[""relative_object""]=self.cob[""focused_object""]
+self[""relative_object""]=self.cob[""focused_object""]
 end function
 StateManager.set_object=function(object)
 type=typeof(object)
@@ -382,7 +381,7 @@ for obj in StateManager.cob[""stored_objects""]
 key=obj[""uid""]
 result=result+key+"":""
 if StateManager.cob[""focused_object""][""uid""]==obj[""uid""] then result=result+"" (focused)""
-if StateManager.cob[""relative_object""][""uid""]==obj[""uid""] then result=result+"" (relative)""
+if StateManager[""relative_object""][""uid""]==obj[""uid""] then result=result+"" (relative)""
 if StateManager.cob[""home_object""][""uid""]==obj[""uid""] then result=result+"" (home)""
 if obj[""shell""]!=null then
 result=result+"" shell ""
@@ -585,7 +584,10 @@ end if
 for string in strings
 object=meta_lib.overflow(address,string,opt_val)
 type=StateManager.set_object(object)
-StateManager[""focused""]
+if type==""file"" then
+StateManager.cob[""focused_object""][""info""][""pub_ip""]=info[""pub_ip""]
+StateManager.cob[""focused_object""][""info""][""local_ip""]=info[""local_ip""]
+end if
 ExploitManager.save_exploit(libname,libversion,address,string,[""unknown"",type])
 end for
 end for
@@ -680,9 +682,9 @@ return ""Not attacking.""
 end if
 // Get exploits from store, then prompt user to select one
 exploits=ExploitManager.get_exploits(libname,libversion)
-ExploitManager.prompt_exploit(meta_lib,exploits,opt_val,{""pub_ip"":StateManager.cob[""relative_object""][""info""][""pub_ip""],""local_ip"":StateManager.cob[""relative_object""][""info""][""local_ip""]})
+ExploitManager.prompt_exploit(meta_lib,exploits,opt_val,{""pub_ip"":StateManager[""relative_object""][""info""][""pub_ip""],""local_ip"":StateManager[""relative_object""][""info""][""local_ip""]})
 end function
-MiniClick.create_command(""shotgun"",""Shotgun a port for exploits"").add_argument(""ip"",""The IP address to target"").add_argument(""port"",""The port to target"").add_option(""opt_val"",""The value to pass to the exploit"",""192.168.0.1"",""o"").set_function(ExploitCommands[""shotgun_port""]).build
+MiniClick.create_command(""local"",""Attack a local library"").add_argument(""path"",""The path to the library"").add_option(""opt_val"",""The value to pass to the exploit"",""192.168.0.1"",""o"").set_function(ExploitCommands[""local_attack""]).build
 MiniClick.create_command(""target"",""Target a port for exploits"").add_argument(""ip"",""The IP address to target"").add_argument(""port"",""The port to target"").add_option(""opt_val"",""The value to pass to the exploit"",""192.168.0.1"",""o"").set_function(ExploitCommands[""target_port""]).build
 ////////////////////////////////////////////////////
 FileCommands={}
