@@ -858,7 +858,10 @@ ExploitCommands.target_port = function(args)
     else
         confirm = user_input("Library not stored. Would you like to shotgun it? (y/n): ")
         if confirm == "y" then
-            return ExploitManager.shotgun_lib(meta_lib, opt_val)
+            return ExploitManager.shotgun_lib(meta_lib, opt_val, {
+                "pub_ip": ip,
+                "local_ip": local_ip,
+            })
         end if
         return "Not attacking."
     end if
