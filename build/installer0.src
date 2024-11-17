@@ -319,8 +319,8 @@ return
 end if
 self.cob.layer=self.cob.layer+1
 self[""relative_object""]=self.cob[""focused_object""]
-MiniClick.run(""put ""+self.cob[""home_path""]+""/librshell.so ""+current_path)
-MiniClick.run(""put ""+self.cob[""home_path""]+""/metaxploit.so ""+current_path)
+MiniClick.run((""put ""+self.cob[""home_path""]+""/librshell.so ""+current_path).split("" ""))
+MiniClick.run((""put ""+self.cob[""home_path""]+""/metaxploit.so ""+current_path).split("" ""))
 self.cob[""remote_metax""]=include_lib(current_path+""/metaxploit.so"")
 end function
 StateManager.first_layer=function
