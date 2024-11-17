@@ -392,6 +392,8 @@ StateManager.first_layer = function()
     self.cob["home_metax"] = include_lib(current_path + "/metaxploit.so")
     self.cob["remote_metax"] = include_lib(current_path + "/metaxploit.so")
 
+    self.cob["home_crypto"] = include_lib(current_path + "/crypto.so")
+
     self.cob["exploit_store"] = {}  // Structure: {"libname": {"version": {"address": {"string": ["root/user/guest", "shell/computer/file"], "string": ["root/user/guest", "shell/computer/file"]}, ...}}}
 
     self.cob["remote_rlib"] = null // Only sets once reverse shell is manually set
@@ -584,6 +586,12 @@ UtilityCommands.unset_alias = function(args)
 
     MiniClick.commands.remove(alias)
     return "Alias removed: " + alias
+end function
+
+UtilityCommands.crack_md5 = function(args)
+    hash = args["hash"]
+    pass = StateManager.cob["home_crypto"].decipher(hash)
+    if pass == null then return "Hash not found." else return pass
 end function
 
 MiniClick.create_command("echo", "Print a message").
