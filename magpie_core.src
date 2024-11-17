@@ -618,6 +618,11 @@ MiniClick.create_command("unalias", "Remove a command alias").
     set_function(UtilityCommands["unset_alias"]).
     build()
 
+MiniClick.create_command("crack", "Crack an MD5 hash").
+    add_argument("hash", "The hash to crack").
+    set_function(UtilityCommands["crack_md5"]).
+    build()
+
 ////////////////////////////////////////////////////
 
 ExploitManager = {}
