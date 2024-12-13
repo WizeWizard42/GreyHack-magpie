@@ -487,6 +487,54 @@ StateManager.set_object = function(object)
     return type
 end function
 
+StateManager.get_focused_file = function()
+    f = self.cob["focused_object"]["file"]
+    if f == null then return Error.init("No focused file.")
+    return f
+end function
+StateManager.get_focused_computer = function()
+    c = self.cob["focused_object"]["computer"]
+    if c == null then return Error.init("No focused computer.")
+    return c
+end function
+StateManager.get_focused_shell = function()
+    s = self.cob["focused_object"]["shell"]
+    if s == null then return Error.init("No focused shell.")
+    return s
+end function
+
+StateManager.get_relative_file = function()
+    f = self["relative_object"]["file"]
+    if f == null then return Error.init("No relative file.")
+    return f
+end function
+StateManager.get_relative_computer = function()
+    c = self["relative_object"]["computer"]
+    if c == null then return Error.init("No relative computer.")
+    return c
+end function
+StateManager.get_relative_shell = function()
+    s = self["relative_object"]["shell"]
+    if s == null then return Error.init("No relative shell.")
+    return s
+end function
+
+StateManager.get_home_file = function()
+    f = self.cob["home_object"]["file"]
+    if f == null then return Error.init("No home file.")
+    return f
+end function
+StateManager.get_home_computer = function()
+    c = self.cob["home_object"]["computer"]
+    if c == null then return Error.init("No home computer.")
+    return c
+end function
+StateManager.get_home_shell = function()
+    s = self.cob["home_object"]["shell"]
+    if s == null then return Error.init("No home shell.")
+    return s
+end function
+
 ////////////////////////////////////////////////////
 
 StateCommands = {} // CLI commands for interacting with StateManager
@@ -706,7 +754,9 @@ end function
 
 // Returns whether the library directory exists, and creates it if it doesn't
 ExploitManager.check_libpath = function(libname, libversion)
-    c = StateManager.cob["home_object"]["computer"]
+    c = StateManager.get_home_computer()
+    if typeof(c) == "Error" then return c
+
     home_path = StateManager.cob["home_path"]
 
     exploits_path = home_path + "/exploits"
@@ -740,10 +790,12 @@ ExploitManager.check_exploit = function(libname, libversion, address = null)
 end function
 
 ExploitManager.load_exploit = function(libname, libversion)
+    c = StateManager.get_home_computer()
+    if typeof(c) == "Error" then return c
+
     self.check_libpath(libname, libversion)
     version_path = StateManager.cob["home_path"] + "/exploits/" + libname + "/" + libversion
 
-    c = StateManager.cob["home_object"]["computer"]
     version_dir = c.File(version_path)
     if version_dir == null or version_dir.is_folder == false then
         // No directory or not a folder
@@ -778,7 +830,9 @@ ExploitManager.store_exploits = function(libname, libversion)
     if not StateManager.cob["exploit_store"].hasIndex(libname) then return
     if not StateManager.cob["exploit_store"][libname].hasIndex(libversion) then return
 
-    c = StateManager.cob["home_object"]["computer"]
+    c = StateManager.get_home_computer()
+    if typeof(c) == "Error" then return c
+
     self.check_libpath(libname, libversion)
 
     version_path = StateManager.cob["home_path"] + "/exploits/" + libname + "/" + libversion
@@ -1010,12 +1064,11 @@ FileCommands = {}
 FileCommands.classID = "FileCommands"
 
 FileCommands.read_file = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
     filename = args["filename"]
 
-    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+    file = f.get_files.first("name", filename)
     if file == null then
         return Error.init("File not found: " + filename)
     end if
@@ -1023,13 +1076,13 @@ FileCommands.read_file = function(args)
 end function
 
 FileCommands.write_file = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     filename = args["filename"]
     content = args["content"].join(" ")
 
-    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+    file = f.get_files.first("name", filename)
     if file == null then
         return Error.init("File not found: " + filename)
     end if
@@ -1041,23 +1094,23 @@ FileCommands.write_file = function(args)
 end function
 
 FileCommands.list_files = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
-    if StateManager.cob["focused_object"]["file"].is_folder == false then
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
+    if f.is_folder == false then
         return Error.init("File is not a folder.")
     end if
-    folders = StateManager.cob["focused_object"]["file"].get_folders
+    folders = f.get_folders
     if folders == null then
         return Error.init("cwd does not exist. Good luck!")
     end if
-    files = StateManager.cob["focused_object"]["file"].get_files
+    files = f.get_files
     if files == null then
         return Error.init("cwd does not exist. Good luck!")
     end if
 
     objects = folders + files
-    objects.insert(0, StateManager.cob["focused_object"]["file"])
+    objects.insert(0, f)
 
     result = ""
     for obj in objects
@@ -1068,12 +1121,12 @@ FileCommands.list_files = function(args)
 end function
 
 FileCommands.change_dir = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     path = args["path"].trim.split("/")
 
-    temp_file = StateManager.cob["focused_object"]["file"]
+    temp_file = f
     if path[0] == "" then
         while temp_file.parent != null
             temp_file = temp_file.parent
@@ -1099,16 +1152,16 @@ FileCommands.change_dir = function(args)
         end if
     end for
 
-    StateManager.cob["focused_object"]["file"] = temp_file
+    StateManager.cob["focused_object"]["file"] = temp_file // Direct reference needed to change object
 end function
 
 FileCommands.delete_file = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     filename = args["filename"]
 
-    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+    file = f.get_files.first("name", filename)
     if file == null then
         return Error.init("File not found: " + filename)
     end if
@@ -1120,12 +1173,11 @@ FileCommands.delete_file = function(args)
 end function
 
 FileCommands.delete_dir = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
     dirname = args["dirname"]
 
-    file = StateManager.cob["focused_object"]["file"].get_folders.first("name", dirname)
+    file = f.get_folders.first("name", dirname)
     if file == null then
         return Error.init("Folder not found: " + dirname)
     end if
@@ -1137,9 +1189,9 @@ FileCommands.delete_dir = function(args)
 end function
 
 FileCommands.change_perms = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     filename = args["filename"]
     permissions = args["permissions"]
     recursive = args["recursive"]
@@ -1149,9 +1201,9 @@ FileCommands.change_perms = function(args)
     end if
 
     if filename == "." then
-        file = StateManager.cob["focused_object"]["file"]
+        file = f
     else
-        file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+        file = f.get_files.first("name", filename)
     end if
 
     if file == null then
@@ -1194,14 +1246,14 @@ FileCommands.change_perms = function(args)
 end function
 
 FileCommands.change_group = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     filename = args["filename"]
     group = args["group"]
     recursive = args["recursive"]
 
-    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+    file = f.get_files.first("name", filename)
     if file == null then
         return Error.init("File not found: " + filename)
     end if
@@ -1213,14 +1265,14 @@ FileCommands.change_group = function(args)
 end function
 
 FileCommands.change_owner = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     filename = args["filename"]
     owner = args["owner"]
     recursive = args["recursive"]
 
-    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+    file = f.get_files.first("name", filename)
     if file == null then
         return Error.init("File not found: " + filename)
     end if
@@ -1232,14 +1284,14 @@ FileCommands.change_owner = function(args)
 end function
 
 FileCommands.copy_file = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     filename = args["filename"]
     destination = args["destination"]
     newname = args["newname"]
 
-    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+    file = f.get_files.first("name", filename)
     if file == null then
         return Error.init("File not found: " + filename)
     end if
@@ -1251,14 +1303,14 @@ FileCommands.copy_file = function(args)
 end function
 
 FileCommands.move_file = function(args)
-    if StateManager.cob["focused_object"]["file"] == null then
-        return Error.init("File object not set.")
-    end if
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
     filename = args["filename"]
     destination = args["destination"]
     newname = args["newname"]
 
-    file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
+    file = f.get_files.first("name", filename)
     if file == null then
         return Error.init("File not found: " + filename)
     end if
@@ -1340,80 +1392,79 @@ ComputerCommands = {}
 ComputerCommands.classID = "ComputerCommands"
 
 ComputerCommands.view_procs = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
-    return format_columns(StateManager.cob["focused_object"]["computer"].show_procs)
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+    return format_columns(c.show_procs)
 end function
 
 ComputerCommands.kill_proc = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
     pid = args["pid"].to_int
     if typeof(pid) != "number" then return "Invalid PID: " + args["pid"]
     
-    return StateManager.cob["focused_object"]["computer"].close_program(pid)
+    return c.close_program(pid)
 end function
 
 ComputerCommands.add_user = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
     username = args["username"]
     password = args["password"]
 
-    return StateManager.cob["focused_object"]["computer"].create_user(username, password)
+    return c.create_user(username, password)
 end function
 
 ComputerCommands.remove_user = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
     username = args["username"]
     remove_home = args["remove_home"]
 
-    return StateManager.cob["focused_object"]["computer"].delete_user(username, remove_home)
+    return c.delete_user(username, remove_home)
 end function
 
 ComputerCommands.add_group = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
     username = args["username"]
     groupname = args["groupname"]
 
-    return StateManager.cob["focused_object"]["computer"].create_group(username, groupname)
+    return c.create_group(username, groupname)
 end function
 
 ComputerCommands.remove_group = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
     username = args["username"]
     groupname = args["groupname"]
 
-    return StateManager.cob["focused_object"]["computer"].delete_group(username, groupname)
+    return c.delete_group(username, groupname)
 end function
 
 ComputerCommands.create_file = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
     path = args["path"]
     filename = args["filename"]
 
-    return StateManager.cob["focused_object"]["computer"].touch(path, filename)
+    return c.touch(path, filename)
 end function
 
 ComputerCommands.create_folder = function(args)
-    if StateManager.cob["focused_object"]["computer"] == null then
-        return Error.init("Computer object not set.")
-    end if
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
     path = args["path"]
     foldername = args["foldername"]
 
-    return StateManager.cob["focused_object"]["computer"].create_folder(path, foldername)
+    return c.create_folder(path, foldername)
 end function
 
 MiniClick.create_command("ps", "View running processes").
@@ -1467,78 +1518,77 @@ ShellCommands = {}
 ShellCommands.classID = "ShellCommands"
 
 ShellCommands.drop_shell = function(args)
-    if StateManager.cob["focused_object"]["shell"] == null then
-        return Error.init("Shell object not set.")
-    end if
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
 
     confirm = user_input("Are you absolutely sure you want to drop to a shell? (y/n): ")
     if confirm == "y" then
         print("Dropping to shell...")
-        return start_terminal(StateManager.cob["focused_object"]["shell"])
+        return start_terminal(s)
     end if
 end function
 
 ShellCommands.build_file = function(args)
-    if StateManager.cob["focused_object"]["shell"] == null then
-        return Error.init("Shell object not set.")
-    end if
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
+
     source_path = args["source_path"]
     destination_path = args["destination_path"]
     can_import = args["can_import"]
 
-    return build(StateManager.cob["focused_object"]["shell"], source_path, destination_path, can_import)
+    return build(s, source_path, destination_path, can_import)
 end function
 
 ShellCommands.get_file = function(args)
-    if StateManager.cob["focused_object"]["shell"] == null then
-        return Error.init("Shell object not set.")
-    end if
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
+
     source_path = args["source_path"]
     destination_path = args["destination_path"]
     to_relative = args["to_relative"]
 
     if to_relative then
-        return scp(StateManager.cob["focused_object"]["shell"], source_path, destination_path, get_shell)
+        return scp(s, source_path, destination_path, get_shell)
     end if
 
-    return scp(StateManager.cob["focused_object"]["shell"], source_path, destination_path, StateManager.home_shell)
+    return scp(s, source_path, destination_path, StateManager.get_home_shell())
 end function
 
 ShellCommands.put_file = function(args)
-    if StateManager.cob["focused_object"]["shell"] == null then
-        return Error.init("Shell object not set.")
-    end if
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
+
     source_path = args["source_path"]
     destination_path = args["destination_path"]
     from_relative = args["from_relative"]
 
     if from_relative then
-        return scp(get_shell, source_path, destination_path, StateManager.cob["focused_object"]["shell"])
+        return scp(get_shell, source_path, destination_path, s)
     end if
 
-    return scp(StateManager.cob["home_object"]["shell"], source_path, destination_path, StateManager.cob["focused_object"]["shell"])
+    return scp(StateManager.get_home_shell(), source_path, destination_path, s)
 end function
 
 ShellCommands.run_command = function(args)
-    if StateManager.cob["focused_object"]["shell"] == null then
-        return Error.init("Shell object not set.")
-    end if
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
+
     program = args["program"]
     params = args["params"].join(" ")
 
     confirm = user_input("Are you sure you want to run an external program? You will lose your current context. (y/n): ")
     if confirm == "y" then
-        return launch(StateManager.cob["focused_object"]["shell"], program, params)
+        return launch(s, program, params)
     end if
 end function
 
 ShellCommands.try_ping = function(args)
-    if StateManager.cob["focused_object"]["shell"] == null then
-        return Error.init("Shell object not set.")
-    end if
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
+
     ip = args["ip"]
 
-    is_pingable = ping(StateManager.cob["focused_object"]["shell"], ip)
+    is_pingable = ping(s, ip)
 
     if typeof(is_pingable) == "string" then return is_pingable
     if is_pingable then return "Ping successful."
@@ -1547,19 +1597,19 @@ ShellCommands.try_ping = function(args)
 end function
 
 ShellCommands.pivot_host = function(args)
-    if StateManager.cob["focused_object"]["shell"] == null then
-        return Error.init("Shell object not set.")
-    end if
+    s = StateManager.get_focused_shell()
+    f = StateManager.get_focused_file()
+    if typeof(s) == "Error" then return s
+    if typeof(f) == "Error" then return f
 
-    result = scp(StateManager.cob["home_object"]["shell"], StateManager.cob["home_path"] + "/magpie",
-        StateManager.cob["focused_object"]["file"].path, StateManager.cob["focused_object"]["shell"])
-    if typeof(result) == "string" then return result
+    result = scp(StateManager.get_home_shell(), StateManager.cob["home_path"] + "/magpie", f.path, s)
+    if typeof(result) == "string" then return Error.init("Error dropping files: " + result)
 
     StateManager.cob["layer"] = StateManager.cob["layer"] + 1
-    result = launch(StateManager.cob["focused_object"]["shell"], StateManager.cob["focused_object"]["file"].path + "/magpie")
+    result = launch(s, f.path + "/magpie")
     if typeof(result) == "string" then
         StateManager.cob["layer"] = StateManager.cob["layer"] - 1
-        return result
+        return Error.init("Error launching: " + result)
     end if
 end function
 
@@ -1616,7 +1666,7 @@ StateManager.init()
 while true
     prompt_text = StateManager.cob["focused_object"].info.user + 
     "@" + StateManager.cob["focused_object"].info.pub_ip + 
-    ": " + StateManager.cob["focused_object"]["file"].path + "# "
+    ": " + StateManager.get_focused_file().path + "# "
 
     command = user_input(prompt_text).trim
     if command == "exit" then
