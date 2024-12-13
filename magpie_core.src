@@ -387,7 +387,13 @@ StateManager.first_layer = function()
     self.cob["aptclient"] = include_lib(current_path + "/aptclient.so")
     if self.cob["aptclient"] == null then exit("aptclient.so needs to be in the same directory as the script!")
 
-    self.cob["aptclient"].update()
+    while true
+        self.cob["aptclient"].update()
+        if not self.cob["aptclient"].search("metaxploit.so").is_match("not found") then break
+        hack_shop = user_input("Hackshop IP not found. Enter IP: ")
+        if not is_valid_ip(hack_shop) then continue
+        self.cob["aptclient"].add_repo(hack_shop)
+    end while
 
     if self.cob["aptclient"].check_upgrade(current_path + "/librshell.so") then
         self.cob["aptclient"].install("librshell.so", current_path)
@@ -719,9 +725,10 @@ ExploitManager.check_libpath = function(libname, libversion)
     // Ensure the necessary directories exist
     check_dir(home_path, "exploits")
     check_dir(exploits_path, libname)
+    check_dir(lib_path, libversion)
 
-    // If version directory doesn't exist (version hasn't been stored), create it and return false
-    return check_dir(lib_path, libversion)
+    // Return whether the version directory has files
+    return c.File(version_path).get_files.len != 0
 end function
 
 ExploitManager.check_exploit = function(libname, libversion, address = null)
@@ -734,18 +741,35 @@ end function
 
 ExploitManager.load_exploit = function(libname, libversion)
     self.check_libpath(libname, libversion)
-
     version_path = StateManager.cob["home_path"] + "/exploits/" + libname + "/" + libversion
 
     c = StateManager.cob["home_object"]["computer"]
-    for file in c.File(version_path).get_files
-        address = file.name
-        string_exploits = file.get_content.split(char(10))[:-1]
+    version_dir = c.File(version_path)
+    if version_dir == null or version_dir.is_folder == false then
+        // No directory or not a folder
+        return
+    end if
 
-        for exploit in string_exploits
+    address_files = version_dir.get_files
+    if address_files == null or address_files.len == 0 then
+        // No address files found
+        return
+    end if
+
+    for file in address_files
+        address = file.name
+        file_content = file.get_content
+        if file_content == "" then continue // No content, skip
+
+        lines = file_content.split(char(10))[:-1]
+        for exploit in lines
             exploit_data = exploit.split(" ")
+            if exploit_data.len < 3 then continue
+
             string = exploit_data[0]
-            self.save_exploit(libname, libversion, address, string, [exploit_data[1], exploit_data[2]])
+            user_type = exploit_data[1]
+            object_type = exploit_data[2]
+            self.save_exploit(libname, libversion, address, string, [user_type, object_type])
         end for
     end for
 end function
