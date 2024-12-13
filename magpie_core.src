@@ -6,22 +6,30 @@
 
 //LinQ lib functionality for greyscript
 //By MachaCeleste 20240205
+//Edited by Merlin Newcomb 2024
+
+matches_criteria = function(item, key, value, negate = false)
+    result = item[key] == value
+    if negate then result = not result
+    return result
+end function
+
 map.first = function(key, value)
     for each in self.indexes
-        if self[each][key] == value then return self[each]
+        if matches_criteria(self[each], key, value) then return self[each]
     end for
 end function
 map.where = function(key, value)
     ret = {}
     for each in self.indexes
-        if self[each][key] == value then ret.push(self[each])
+        if matches_criteria(self[each], key, value) then ret.push(self[each])
     end for
     return ret
 end function
 map.wherenot = function(key, value)
     ret = {}
     for each in self.indexes
-        if self[each][key] != value then ret.push(self[each])
+        if matches_criteria(self[each], key, value) then ret.push(self[each])
     end for
     return ret
 end function
@@ -212,8 +220,7 @@ MiniClick.parse_args = function(command, args)
 
     handle_option = function(option_name, is_short)
         if not command.options.hasIndex(option_name) then
-            print("Unknown option: " + option_name)
-            return null
+            return Error.init("Unknown option: " + option_name)
         end if
         option = command.options[option_name]
         if typeof(option.default) == "number" and option.default == false then
@@ -221,8 +228,7 @@ MiniClick.parse_args = function(command, args)
             return 1
         else
             if i + 1 >= args.len then
-                print("Option " + (is_short and "-" or "--") + option_name + " requires a value")
-                return null
+                return Error.init("Option " + (is_short and "-" or "--") + option_name + " requires a value")
             end if
             parsed[option_name] = args[i + 1]
             return 2
@@ -233,22 +239,20 @@ MiniClick.parse_args = function(command, args)
         arg = args[i]
         if arg[:2] == "--" then
             num_consumed = handle_option(arg[2:], false)
-            if num_consumed == null then return null
+            if typeof(num_consumed) == "Error" then return num_consumed
             i = i + num_consumed
         else if arg[:1] == "-" then
             short_name = arg[1:]
             if not command.options.hasIndex(short_name) then
-                print("Unknown option: " + short_name)
-                return null
+                return Error.init("Unknown option: " + short_name)
             end if
             long_name = command.options[short_name].name
             num_consumed = handle_option(long_name, true)
-            if num_consumed == null then return null
+            if typeof(num_consumed) == "Error" then return num_consumed
             i = i + num_consumed
         else
             if arg_index >= command.arguments.len then
-                print("Too many arguments")
-                return null
+                return Error.init("Too many arguments")
             end if
             arg_def = command.arguments[arg_index]
             arg_name = arg_def.name
@@ -271,8 +275,7 @@ MiniClick.parse_args = function(command, args)
     end for
 
     if arg_index < command.arguments.len then
-        print("Not enough arguments")
-        return null
+        return Error.init("Not enough arguments")
     end if
 
     return parsed
@@ -289,7 +292,7 @@ MiniClick.generate_help = function(command_name = null)
         help_text = help_text + "\nUse 'command --help' for more information on a specific command."
     else
         if not MiniClick.commands.hasIndex(command_name) then
-            return "Unknown command: " + command_name
+            return Error.init("Unknown command: " + command_name)
         end if
         command = MiniClick.commands[command_name]
         help_text = command_name + ": " + command.description + "\n\nArguments:\n"
@@ -320,22 +323,19 @@ end function
 MiniClick.run = function(args)
     command_name = args[0]
     if not MiniClick.commands.hasIndex(command_name) then
-        print("Unknown command: " + command_name)
-        return
+        return Error.init("Unknown command: " + command_name)
     end if
 
     command = MiniClick.commands[command_name]
     if args.len > 1 and args[1] == "--help" then
-        print(MiniClick.generate_help(command_name))
-        return
+        return MiniClick.generate_help(command_name)
     end if
 
     parsed_args = MiniClick.parse_args(command, args[1:])
-    if parsed_args == null then return
+    if parsed_args == null or typeof(parsed_args) == "Error" then return parsed_args
 
     if command["func"] == null then
-        print("Error: No function defined for command '" + command_name + "'")
-        return
+        return Error.init("Error: No function defined for command '" + command_name + "'")
     end if
 
     result = command.func(parsed_args)
@@ -350,6 +350,18 @@ end function
 
 // Uncomment to enable unit tests
 //#include testing/test_harness.src;
+
+Error = {}
+Error.classID = "Error"
+
+Error.message = "Uninitialized error"
+
+Error.init = function(message)
+    err = new Error
+    err.message = message
+    err.classID = "Error"
+    return err
+end function
 
 StateManager = {}
 StateManager.classID = "StateManager"
@@ -506,7 +518,7 @@ StateCommands.focus_object = function(args)
         return
     end if
 
-    return "Unknown object: " + uid
+    return Error.init("Unknown object: " + uid)
 end function
 
 StateCommands.release_object = function(args)
@@ -514,10 +526,10 @@ StateCommands.release_object = function(args)
     obj = StateManager.cob["stored_objects"].first("uid", uid)
 
     if obj == null then
-        return "Unknown object: " + uid
+        return Error.init("Unknown object: " + uid)
     end if
 
-    if StateManager.cob["focused_object"]["uid"] == uid then return "Cannot release focused object."
+    if StateManager.cob["focused_object"]["uid"] == uid then return Error.init("Cannot release focused object.")
 
     index = StateManager.cob["stored_objects"].indexOf(obj)
 
@@ -563,11 +575,11 @@ UtilityCommands.set_alias = function(args)
     command = args["command"]
 
     if MiniClick.commands.hasIndex(alias) then
-        return "Alias already exists: " + alias
+        return Error.init("Alias already exists: " + alias)
     end if
 
     if not MiniClick.commands.hasIndex(command) then
-        return "Unknown command: " + command
+        return Error.init("Unknown command: " + command)
     end if
 
     MiniClick.commands[alias] = MiniClick.commands[command]
@@ -577,11 +589,11 @@ UtilityCommands.unset_alias = function(args)
     alias = args["alias"]
 
     if not MiniClick.commands.hasIndex(alias) then
-        return "Unknown alias: " + alias
+        return Error.init("Unknown alias: " + alias)
     end if
 
     if not MiniClick.commands[alias].is_alias then
-        return "Not an alias: " + alias
+        return Error.init("Not an alias: " + alias)
     end if
 
     MiniClick.commands.remove(alias)
@@ -591,7 +603,7 @@ end function
 UtilityCommands.crack_md5 = function(args)
     hash = args["hash"]
     pass = StateManager.cob["home_crypto"].decipher(hash)
-    if pass == null then return "Hash not found." else return pass
+    if pass == null then return Error.init("Hash not found.") else return pass
 end function
 
 MiniClick.create_command("echo", "Print a message").
@@ -630,7 +642,7 @@ ExploitManager.classID = "ExploitManager"
 
 ExploitManager.remote_lib = function(ip, port)
     port = port.to_int
-    if typeof(port) != "number" then return "Invalid port: " + port
+    if typeof(port) != "number" then return Error.init("Invalid port: " + port)
     return StateManager.cob["remote_metax"].net_use(ip, port).dump_lib
 end function
 
@@ -662,7 +674,7 @@ ExploitManager.verify_tuple = function(tuple)
 end function
 
 ExploitManager.save_exploit = function(libname, libversion, address, string, result_tuple)
-    if not self.verify_tuple(result_tuple) then return "Invalid tuple: " + result_tuple
+    if not self.verify_tuple(result_tuple) then return Error.init("Invalid tuple: " + result_tuple)
     
     if not StateManager.cob["exploit_store"].hasIndex(libname) then
         StateManager.cob["exploit_store"][libname] = {}
@@ -850,8 +862,8 @@ ExploitCommands.target_port = function(args)
     port = args["port"]
     opt_val = args["opt_val"]
 
-    if not is_valid_ip(ip) then return "Invalid IP: " + ip
-    if typeof(port.to_int) != "number" then return "Invalid port: " + port
+    if not is_valid_ip(ip) then return Error.init("Invalid IP: " + ip)
+    if typeof(port.to_int) != "number" then return Error.init("Invalid port: " + port)
 
     if port.to_int == 0 then 
         local_ip = get_router(ip).local_ip
@@ -931,54 +943,93 @@ MiniClick.create_command("target", "Target a port for exploits").
 
 ////////////////////////////////////////////////////
 
+FileManager = {}
+FileManager.classID = "FileManager"
+
+FileManager.view_folder = function(file_object, path)
+    if file_object == null or typeof(file_object) != "file" then return Error.init("File object not set.")
+    if path == null then path = "" else path = path.trim.split("/")
+
+    temp_file = file_object
+
+    if path[0] == "" then
+        while temp_file.parent != null
+            temp_file = temp_file.parent
+        end while
+
+        path = path[1:]
+    end if
+
+    for step in path
+        step = step.trim
+        if step == "" then continue
+        if step == ".." then
+            if temp_file.parent != null then
+                temp_file = temp_file.parent
+            end if
+        else if step == "." then
+            continue
+        else
+            temp_file = temp_file.get_folders.first("name", step)
+            if temp_file == null then
+                return Error.init("Folder not found: " + step)
+            end if
+        end if
+    end for
+
+
+end function
+
+////////////////////////////////////////////////////
+
 FileCommands = {}
 FileCommands.classID = "FileCommands"
 
 FileCommands.read_file = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
 
     file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
     return file.get_content
 end function
 
 FileCommands.write_file = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
     content = args["content"].join(" ")
 
     file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
     result = file.set_content(content)
     if result == true then
         return "File written: " + filename
     end if
-    return "Error writing file: " + result
+    return Error.init("Error writing file: " + result)
 end function
 
 FileCommands.list_files = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     if StateManager.cob["focused_object"]["file"].is_folder == false then
-        return "File is not a folder."
+        return Error.init("File is not a folder.")
     end if
     folders = StateManager.cob["focused_object"]["file"].get_folders
     if folders == null then
-        return "cwd has been deleted. Good luck!"
+        return Error.init("cwd does not exist. Good luck!")
     end if
     files = StateManager.cob["focused_object"]["file"].get_files
     if files == null then
-        return "cwd has been deleted. Good luck!"
+        return Error.init("cwd does not exist. Good luck!")
     end if
 
     objects = folders + files
@@ -994,7 +1045,7 @@ end function
 
 FileCommands.change_dir = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     path = args["path"].trim.split("/")
 
@@ -1019,7 +1070,7 @@ FileCommands.change_dir = function(args)
         else
             temp_file = temp_file.get_folders.first("name", step)
             if temp_file == null then
-                return "Folder not found: " + step
+                return Error.init("Folder not found: " + step)
             end if
         end if
     end for
@@ -1029,48 +1080,48 @@ end function
 
 FileCommands.delete_file = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
 
     file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
     result = file.delete
     if result != "" then
-        return "Error deleting file: " + result
+        return Error.init("Error deleting file: " + result)
     end if
     return "File deleted: " + filename
 end function
 
 FileCommands.delete_dir = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     dirname = args["dirname"]
 
     file = StateManager.cob["focused_object"]["file"].get_folders.first("name", dirname)
     if file == null then
-        return "Folder not found: " + dirname
+        return Error.init("Folder not found: " + dirname)
     end if
     result = file.delete
     if result != "" then
-        return "Error deleting folder: " + result
+        return Error.init("Error deleting folder: " + result)
     end if
     return "Folder deleted: " + dirname
 end function
 
 FileCommands.change_perms = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
     permissions = args["permissions"]
     recursive = args["recursive"]
 
     if typeof(permissions.to_int) != "number" then
-        return "Invalid permissions: " + permissions
+        return Error.init("Invalid permissions: " + permissions)
     end if
 
     if filename == "." then
@@ -1080,12 +1131,12 @@ FileCommands.change_perms = function(args)
     end if
 
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
 
     // First, change all permissions to 000.
     result = file.chmod("u-rwx", recursive)
-    if result != "" then return "Error changing permissions: " + result
+    if result != "" then return Error.init("Error changing permissions: " + result)
     file.chmod("g-rwx", recursive)
     file.chmod("o-rwx", recursive)
 
@@ -1120,7 +1171,7 @@ end function
 
 FileCommands.change_group = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
     group = args["group"]
@@ -1128,18 +1179,18 @@ FileCommands.change_group = function(args)
 
     file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
 
     result = file.set_group(group, recursive)
     if result != "" then
-        return "Error changing group: " + result
+        return Error.init("Error changing group: " + result)
     end if
 end function
 
 FileCommands.change_owner = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
     owner = args["owner"]
@@ -1147,18 +1198,18 @@ FileCommands.change_owner = function(args)
 
     file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
 
     result = file.set_owner(owner, recursive)
     if result != "" then
-        return "Error changing owner: " + result
+        return Error.init("Error changing owner: " + result)
     end if
 end function
 
 FileCommands.copy_file = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
     destination = args["destination"]
@@ -1166,18 +1217,18 @@ FileCommands.copy_file = function(args)
 
     file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
 
     result = file.copy(destination, newname)
     if typeof(result) == "string" then
-        return "Error copying file: " + result
+        return Error.init("Error copying file: " + result)
     end if
 end function
 
 FileCommands.move_file = function(args)
     if StateManager.cob["focused_object"]["file"] == null then
-        return "File object not set."
+        return Error.init("File object not set.")
     end if
     filename = args["filename"]
     destination = args["destination"]
@@ -1185,12 +1236,12 @@ FileCommands.move_file = function(args)
 
     file = StateManager.cob["focused_object"]["file"].get_files.first("name", filename)
     if file == null then
-        return "File not found: " + filename
+        return Error.init("File not found: " + filename)
     end if
 
     result = file.move(destination, newname)
     if typeof(result) == "string" then
-        return "Error moving file: " + result
+        return Error.init("Error moving file: " + result)
     end if
 end function
 
@@ -1242,7 +1293,8 @@ MiniClick.create_command("chown", "Change file owner").
     add_argument("filename", "The name of the file to change owner for").
     add_argument("owner", "The new owner").
     add_option("recursive", "Apply changes recursively", false, "r").
-    set_function(FileCommands["change_owner"]).build()
+    set_function(FileCommands["change_owner"]).
+    build()
 
 MiniClick.create_command("cp", "Copy a file").
     add_argument("filename", "The name of the file to copy").
@@ -1265,14 +1317,14 @@ ComputerCommands.classID = "ComputerCommands"
 
 ComputerCommands.view_procs = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     return format_columns(StateManager.cob["focused_object"]["computer"].show_procs)
 end function
 
 ComputerCommands.kill_proc = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     pid = args["pid"].to_int
     if typeof(pid) != "number" then return "Invalid PID: " + args["pid"]
@@ -1282,7 +1334,7 @@ end function
 
 ComputerCommands.add_user = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     username = args["username"]
     password = args["password"]
@@ -1292,7 +1344,7 @@ end function
 
 ComputerCommands.remove_user = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     username = args["username"]
     remove_home = args["remove_home"]
@@ -1302,7 +1354,7 @@ end function
 
 ComputerCommands.add_group = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     username = args["username"]
     groupname = args["groupname"]
@@ -1312,7 +1364,7 @@ end function
 
 ComputerCommands.remove_group = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     username = args["username"]
     groupname = args["groupname"]
@@ -1322,7 +1374,7 @@ end function
 
 ComputerCommands.create_file = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     path = args["path"]
     filename = args["filename"]
@@ -1332,7 +1384,7 @@ end function
 
 ComputerCommands.create_folder = function(args)
     if StateManager.cob["focused_object"]["computer"] == null then
-        return "Computer object not set."
+        return Error.init("Computer object not set.")
     end if
     path = args["path"]
     foldername = args["foldername"]
@@ -1392,7 +1444,7 @@ ShellCommands.classID = "ShellCommands"
 
 ShellCommands.drop_shell = function(args)
     if StateManager.cob["focused_object"]["shell"] == null then
-        return "Shell object not set."
+        return Error.init("Shell object not set.")
     end if
 
     confirm = user_input("Are you absolutely sure you want to drop to a shell? (y/n): ")
@@ -1404,7 +1456,7 @@ end function
 
 ShellCommands.build_file = function(args)
     if StateManager.cob["focused_object"]["shell"] == null then
-        return "Shell object not set."
+        return Error.init("Shell object not set.")
     end if
     source_path = args["source_path"]
     destination_path = args["destination_path"]
@@ -1415,7 +1467,7 @@ end function
 
 ShellCommands.get_file = function(args)
     if StateManager.cob["focused_object"]["shell"] == null then
-        return "Shell object not set."
+        return Error.init("Shell object not set.")
     end if
     source_path = args["source_path"]
     destination_path = args["destination_path"]
@@ -1430,7 +1482,7 @@ end function
 
 ShellCommands.put_file = function(args)
     if StateManager.cob["focused_object"]["shell"] == null then
-        return "Shell object not set."
+        return Error.init("Shell object not set.")
     end if
     source_path = args["source_path"]
     destination_path = args["destination_path"]
@@ -1445,7 +1497,7 @@ end function
 
 ShellCommands.run_command = function(args)
     if StateManager.cob["focused_object"]["shell"] == null then
-        return "Shell object not set."
+        return Error.init("Shell object not set.")
     end if
     program = args["program"]
     params = args["params"].join(" ")
@@ -1458,7 +1510,7 @@ end function
 
 ShellCommands.try_ping = function(args)
     if StateManager.cob["focused_object"]["shell"] == null then
-        return "Shell object not set."
+        return Error.init("Shell object not set.")
     end if
     ip = args["ip"]
 
@@ -1472,7 +1524,7 @@ end function
 
 ShellCommands.pivot_host = function(args)
     if StateManager.cob["focused_object"]["shell"] == null then
-        return "Shell object not set."
+        return Error.init("Shell object not set.")
     end if
 
     result = scp(StateManager.cob["home_object"]["shell"], StateManager.cob["home_path"] + "/magpie",
@@ -1563,7 +1615,9 @@ while true
     end for
 
     result = MiniClick.run(command)
-    if result != null then
+    if typeof(result) == "Error" then
+        print(result.message.color("red"))
+    else if result != null then
         print(result)
     end if
 
