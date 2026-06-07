@@ -400,10 +400,10 @@ StateManager.init = function()
     self.cob.layer = self.cob.layer + 1
     self["relative_object"] = self.cob["focused_object"]
 
-    MiniClick.run(("put " + self.cob["home_path"] + "/librshell.so " + current_path).split(" "))
-    MiniClick.run(("put " + self.cob["home_path"] + "/metaxploit.so " + current_path).split(" "))
+    MiniClick.run(("put " + self.cob["home_path"] + "/librshell.so " + self["relative_object"]["file"].path).trim.split(" "))
+    MiniClick.run(("put " + self.cob["home_path"] + "/metaxploit.so " + self["relative_object"]["file"].path).trim.split(" "))
 
-    self.cob["remote_metax"] = include_lib(current_path + "/metaxploit.so")
+    self.cob["remote_metax"] = include_lib(self["relative_object"]["file"].path + "/metaxploit.so")
 end function
 
 StateManager.first_layer = function()
@@ -722,6 +722,71 @@ MiniClick.create_command("crack", "Crack an MD5 hash").
 ExploitManager = {}
 ExploitManager.classID = "ExploitManager"
 
+ExploitManager.whois_lookup = function(ip)
+    info = ""
+
+    if not is_valid_ip(ip) and nslookup(ip) == "Not found" then return Error.init("Invalid IP address or domain: " + ip)
+
+    if not is_valid_ip(ip) then
+        info = info + "Domain: " + ip + "\n"
+        ip = nslookup(ip)
+    end if
+
+    info = info + "IP: " + ip + "\n" + whois(ip)
+    return info
+end function
+
+ExploitManager.smtp_enum = function(ip, port)
+    port = port.to_int
+    if typeof(port) != "number" then return Error.init("Invalid port: " + port)
+    if not is_valid_ip(ip) then return Error.init("Invalid IP address: " + ip)
+
+    result = StateManager.cob["home_crypto"].smtp_user_list(ip, port)
+
+    if typeof(result) == "string" then return Error.init("Enumeration failed: " + result)
+
+    return result
+end function
+
+ExploitManager.full_enum = function(ip)
+    if not is_valid_ip(ip) then return Error.init("Invalid IP address: " + ip)
+
+    result = ""
+
+    router = get_router(ip)
+    if router == null then return Error.init("No router found for IP: " + ip)
+
+    result = result + "Router LAN IP: " + router.local_ip + "\n"
+    result = result + "Router BSSID: " + router.bssid_name + "\n"
+    result = result + "Router ESSID: " + router.essid_name + "\n"
+    result = result + "Port forwards detected:\n"
+
+    for port in router.used_ports
+        result = result + port.port_number + "  open:" + (not port.is_closed) + "  " + router.port_info(port) + "  " + port.get_lan_ip + "\n"
+    end for
+
+    result = result + "\nFirewall rules:\n"
+
+    for rule in router.firewall_rules
+        result = result + rule + "\n"
+    end for
+
+    result = result + "Connected devices:\n"
+
+    for lan in router.devices_lan_ip
+        result = result + "\nLAN: " + lan + "\n"
+        result = result + "Ports:\n"
+
+        ports = router.device_ports(lan)
+
+        for port in ports
+            result = result + port.port_number + "  open:" + (not port.is_closed) + "  " + router.port_info(port) + port.get_lan_ip + "\n"
+        end for
+    end for
+
+    return result
+end function
+
 ExploitManager.remote_lib = function(ip, port)
     port = port.to_int
     if typeof(port) != "number" then return Error.init("Invalid port: " + port)
@@ -971,6 +1036,22 @@ end function
 ExploitCommands = {}
 ExploitCommands.classID = "ExploitCommands"
 
+ExploitCommands.whois = function(args)
+    ip = args["ip"]
+    return ExploitManager.whois_lookup(ip)
+end function
+
+ExploitCommands.smtpdump = function(args)
+    ip = args["ip"]
+    port = args["port"]
+    return ExploitManager.smtp_enum(ip, port)
+end function
+
+ExploitCommands.portenum = function(args)
+    ip = args["ip"]
+    return ExploitManager.port_enum(ip)
+end function
+
 ExploitCommands.target_port = function(args)
     ip = args["ip"]
     port = args["port"]
@@ -979,7 +1060,9 @@ ExploitCommands.target_port = function(args)
     if not is_valid_ip(ip) then return Error.init("Invalid IP: " + ip)
     if typeof(port.to_int) != "number" then return Error.init("Invalid port: " + port)
 
-    if port.to_int == 0 then 
+    if is_lan_ip(ip) then 
+        local_ip = ip
+    else if port.to_int == 0 then 
         local_ip = get_router(ip).local_ip
     else
         local_ip = get_router(ip).used_ports.first("port_number", port.to_int).get_lan_ip
@@ -1042,6 +1125,22 @@ ExploitCommands.local_attack = function(args)
     })
 end function
 
+MiniClick.create_command("whois", "Perform a WHOIS lookup on an IP address or domain").
+    add_argument("ip", "The IP address or domain to look up").
+    set_function(ExploitCommands["whois"]).
+    build()
+
+MiniClick.create_command("smtpdump", "Dump SMTP users from a remote server").
+    add_argument("ip", "The IP address of the remote server").
+    add_argument("port", "The port to connect to").
+    set_function(ExploitCommands["smtpdump"]).
+    build()
+
+MiniClick.create_command("nmap", "Enumerate open ports and services on a remote server").
+    add_argument("ip", "The IP address of the remote server").
+    set_function(ExploitCommands["portenum"]).
+    build()
+
 MiniClick.create_command("local", "Attack a local library").
     add_argument("path", "The path to the library").
     add_option("opt_val", "The value to pass to the exploit", "192.168.0.1", "o").
@@ -1097,14 +1196,9 @@ FileManager.resolve_path = function(file_object, path)
     return temp_file
 end function
 
-////////////////////////////////////////////////////
-
-FileCommands = {}
-FileCommands.classID = "FileCommands"
-
 // Resolve a file-or-folder entry inside folder f by name. "." returns f itself.
 // Looks at files first, then folders. Returns the entry or Error.
-FileCommands._resolve_entry = function(f, name)
+FileManager.resolve_entry = function(f, name)
     if name == "." then return f
     entry = f.get_files.first("name", name)
     if entry != null then return entry
@@ -1112,6 +1206,11 @@ FileCommands._resolve_entry = function(f, name)
     if entry != null then return entry
     return Error.init("File not found: " + name)
 end function
+
+////////////////////////////////////////////////////
+
+FileCommands = {}
+FileCommands.classID = "FileCommands"
 
 FileCommands.read_file = function(args)
     f = StateManager.get_focused_file()
@@ -1225,7 +1324,7 @@ FileCommands.change_perms = function(args)
         return Error.init("Invalid permissions: " + permissions)
     end if
 
-    file = FileCommands._resolve_entry(f, filename)
+    file = FileManager.resolve_entry(f, filename)
     if typeof(file) == "Error" then return file
 
     // First, change all permissions to 000.
@@ -1271,7 +1370,7 @@ FileCommands.change_group = function(args)
     group = args["group"]
     recursive = args["recursive"]
 
-    file = FileCommands._resolve_entry(f, filename)
+    file = FileManager.resolve_entry(f, filename)
     if typeof(file) == "Error" then return file
 
     result = file.set_group(group, recursive)
@@ -1286,7 +1385,7 @@ FileCommands.change_owner = function(args)
     owner = args["owner"]
     recursive = args["recursive"]
 
-    file = FileCommands._resolve_entry(f, filename)
+    file = FileManager.resolve_entry(f, filename)
     if typeof(file) == "Error" then return file
 
     result = file.set_owner(owner, recursive)
@@ -1301,7 +1400,7 @@ FileCommands.copy_file = function(args)
     destination = args["destination"]
     newname = args["newname"]
 
-    file = FileCommands._resolve_entry(f, filename)
+    file = FileManager.resolve_entry(f, filename)
     if typeof(file) == "Error" then return file
 
     result = file.copy(destination, newname)
@@ -1318,7 +1417,7 @@ FileCommands.move_file = function(args)
     destination = args["destination"]
     newname = args["newname"]
 
-    file = FileCommands._resolve_entry(f, filename)
+    file = FileManager.resolve_entry(f, filename)
     if typeof(file) == "Error" then return file
 
     result = file.move(destination, newname)
@@ -1638,12 +1737,8 @@ ShellCommands.pivot_host = function(args)
     result = scp(StateManager.get_home_shell(), StateManager.cob["home_path"] + "/magpie", f.path, s)
     if typeof(result) == "string" then return Error.init("Error dropping files: " + result)
 
-    StateManager.cob["layer"] = StateManager.cob["layer"] + 1
     result = launch(s, f.path + "/magpie")
-    if typeof(result) == "string" then
-        StateManager.cob["layer"] = StateManager.cob["layer"] - 1
-        return Error.init("Error launching: " + result)
-    end if
+    if typeof(result) == "string" then return Error.init("Error launching: " + result)
 end function
 
 MiniClick.create_command("shell", "Drop to a shell").
