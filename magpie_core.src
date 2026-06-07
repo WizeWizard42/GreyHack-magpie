@@ -29,7 +29,7 @@ end function
 map.wherenot = function(key, value)
     ret = {}
     for each in self.indexes
-        if matches_criteria(self[each], key, value) then ret.push(self[each])
+        if matches_criteria(self[each], key, value, true) then ret.push(self[each])
     end for
     return ret
 end function
@@ -50,7 +50,7 @@ list.first = function(key, value)
             if key == "len" and each.len == value then return each
         else if typeof(each) == "file" then
             if key == "name" and each.name == value then return each
-            if key == "namehas" and each.name.is_match(value) then ret.push(each)
+            if key == "namehas" and each.name.is_match(value) then return each
             if key == "path" and each.path == value then return each
             if key == "permissions" and each.permissions == value then return each
             if key == "has_permission" then
@@ -111,7 +111,7 @@ list.wherenot = function(key, value)
             if key == "len" and each.len != value then ret.push(each)
         else if typeof(each) == "file" then
             if key == "name" and each.name != value then ret.push(each)
-            if key == "namehas" and each.name.is_match(value) then ret.push(each)
+            if key == "namehas" and not each.name.is_match(value) then ret.push(each)
             if key == "path" and each.path != value then ret.push(each)
             if key == "permissions" and each.permissions != value then ret.push(each)
             if key == "has_permission" then
@@ -154,24 +154,29 @@ MiniClick = {}
 // Initialize the commands collection
 MiniClick.commands = {}
 
+// Alias map: alias_name -> target_command_name
+MiniClick.aliases = {}
+
 // CommandBuilder "Class"
 CommandBuilder = function(name, description)
     obj = {}
     obj.name = name
     obj.description = description
     obj.options = {}
+    obj.short_aliases = {} // short_name -> long_name
     obj.arguments = []
-    
-    obj.add_option = function(name, description, default = false, short_name = null)
+
+    obj.add_option = function(name, description, default = null, short_name = null, is_flag = false)
         option_data = {
             "name": name,
             "description": description,
             "default": default,
             "short_name": short_name,
+            "is_flag": is_flag,
         }
         self.options[name] = option_data
         if short_name != null then
-            self.options[short_name] = option_data // Allow -<short_name> as alias
+            self.short_aliases[short_name] = name
         end if
         return self // Enable method chaining
     end function
@@ -198,8 +203,8 @@ CommandBuilder = function(name, description)
             "name": self.name,
             "description": self.description,
             "options": self.options,
+            "short_aliases": self.short_aliases,
             "arguments": self.arguments,
-            "is_alias": false,
             "func": self["func"],
         }
     end function
@@ -223,7 +228,7 @@ MiniClick.parse_args = function(command, args)
             return Error.init("Unknown option: " + option_name)
         end if
         option = command.options[option_name]
-        if typeof(option.default) == "number" and option.default == false then
+        if option.is_flag then
             parsed[option_name] = true
             return 1
         else
@@ -243,10 +248,10 @@ MiniClick.parse_args = function(command, args)
             i = i + num_consumed
         else if arg[:1] == "-" then
             short_name = arg[1:]
-            if not command.options.hasIndex(short_name) then
+            if not command.short_aliases.hasIndex(short_name) then
                 return Error.init("Unknown option: " + short_name)
             end if
-            long_name = command.options[short_name].name
+            long_name = command.short_aliases[short_name]
             num_consumed = handle_option(long_name, true)
             if typeof(num_consumed) == "Error" then return num_consumed
             i = i + num_consumed
@@ -270,7 +275,11 @@ MiniClick.parse_args = function(command, args)
 
     for option_name in command.options.indexes
         if not parsed.hasIndex(option_name) then
-            parsed[option_name] = command.options[option_name].default
+            if command.options[option_name].is_flag then
+                parsed[option_name] = false
+            else
+                parsed[option_name] = command.options[option_name].default
+            end if
         end if
     end for
 
@@ -289,8 +298,17 @@ MiniClick.generate_help = function(command_name = null)
             command = MiniClick.commands[name]
             help_text = help_text + name + ": " + command.description + "\n"
         end for
+        if MiniClick.aliases.indexes.len > 0 then
+            help_text = help_text + "\nAliases:\n"
+            for alias in MiniClick.aliases.indexes
+                help_text = help_text + "  " + alias + " -> " + MiniClick.aliases[alias] + "\n"
+            end for
+        end if
         help_text = help_text + "\nUse 'command --help' for more information on a specific command."
     else
+        if MiniClick.aliases.hasIndex(command_name) then
+            command_name = MiniClick.aliases[command_name]
+        end if
         if not MiniClick.commands.hasIndex(command_name) then
             return Error.init("Unknown command: " + command_name)
         end if
@@ -302,15 +320,15 @@ MiniClick.generate_help = function(command_name = null)
 
         help_text = help_text + "\nOptions:\n"
         for option_name in command.options.indexes
-            if option_name.len == 1 then continue // Skip short options
-            
             option = command.options[option_name]
             help_text = help_text + "  --" + option.name
             if option.short_name != null then
                 help_text = help_text + " (-" + option.short_name + ")"
             end if
             help_text = help_text + ": " + option.description
-            if option.default != null then
+            if option.is_flag then
+                help_text = help_text + " (flag)"
+            else if option.default != null then
                 help_text = help_text + " (default: " + option.default + ")"
             end if
             help_text = help_text + "\n"
@@ -322,14 +340,19 @@ end function
 // Running Commands
 MiniClick.run = function(args)
     command_name = args[0]
+    if MiniClick.aliases.hasIndex(command_name) then
+        command_name = MiniClick.aliases[command_name]
+    end if
     if not MiniClick.commands.hasIndex(command_name) then
         return Error.init("Unknown command: " + command_name)
     end if
 
     command = MiniClick.commands[command_name]
-    if args.len > 1 and args[1] == "--help" then
-        return MiniClick.generate_help(command_name)
-    end if
+
+    // --help may appear anywhere in the argument list
+    for a in args[1:]
+        if a == "--help" then return MiniClick.generate_help(command_name)
+    end for
 
     parsed_args = MiniClick.parse_args(command, args[1:])
     if parsed_args == null or typeof(parsed_args) == "Error" then return parsed_args
@@ -629,28 +652,33 @@ UtilityCommands.set_alias = function(args)
     command = args["command"]
 
     if MiniClick.commands.hasIndex(alias) then
+        return Error.init("Name already used by a command: " + alias)
+    end if
+
+    if MiniClick.aliases.hasIndex(alias) then
         return Error.init("Alias already exists: " + alias)
+    end if
+
+    // Resolve through aliases so chained aliases point at the real command
+    if MiniClick.aliases.hasIndex(command) then
+        command = MiniClick.aliases[command]
     end if
 
     if not MiniClick.commands.hasIndex(command) then
         return Error.init("Unknown command: " + command)
     end if
 
-    MiniClick.commands[alias] = MiniClick.commands[command]
+    MiniClick.aliases[alias] = command
 end function
 
 UtilityCommands.unset_alias = function(args)
     alias = args["alias"]
 
-    if not MiniClick.commands.hasIndex(alias) then
+    if not MiniClick.aliases.hasIndex(alias) then
         return Error.init("Unknown alias: " + alias)
     end if
 
-    if not MiniClick.commands[alias].is_alias then
-        return Error.init("Not an alias: " + alias)
-    end if
-
-    MiniClick.commands.remove(alias)
+    MiniClick.aliases.remove(alias)
     return "Alias removed: " + alias
 end function
 
@@ -697,7 +725,9 @@ ExploitManager.classID = "ExploitManager"
 ExploitManager.remote_lib = function(ip, port)
     port = port.to_int
     if typeof(port) != "number" then return Error.init("Invalid port: " + port)
-    return StateManager.cob["remote_metax"].net_use(ip, port).dump_lib
+    session = StateManager.cob["remote_metax"].net_use(ip, port)
+    if session == null then return Error.init("net_use failed for " + ip + ":" + port)
+    return session.dump_lib
 end function
 
 ExploitManager.local_lib = function(path)
@@ -875,8 +905,9 @@ ExploitManager.shotgun_lib = function(meta_lib, opt_val, info)
 
         for string in strings
             object = meta_lib.overflow(address, string, opt_val)
+            if typeof(object) == "string" then return Error.init("Shotgun aborted: " + object)
             type = StateManager.set_object(object)
-            if type == "file" then
+            if type == "file" and info != null then
                 StateManager.cob["focused_object"]["info"]["pub_ip"] = info["pub_ip"]
                 StateManager.cob["focused_object"]["info"]["local_ip"] = info["local_ip"]
             end if
@@ -914,8 +945,13 @@ ExploitManager.prompt_exploit = function(meta_lib, exploits, opt_val = null, inf
                 continue
             end if
             exploit = exploit_list[choice - 1]
-            type = StateManager.set_object(meta_lib.overflow(exploit[0], exploit[1], opt_val))
-            if type == "file" then
+            result = meta_lib.overflow(exploit[0], exploit[1], opt_val)
+            if typeof(result) == "string" then
+                print(("Exploit returned: " + result).color("red"))
+                continue
+            end if
+            type = StateManager.set_object(result)
+            if type == "file" and info != null then
                 StateManager.cob["focused_object"]["info"]["pub_ip"] = info["pub_ip"]
                 StateManager.cob["focused_object"]["info"]["local_ip"] = info["local_ip"]
             end if
@@ -946,14 +982,14 @@ ExploitCommands.target_port = function(args)
     if port.to_int == 0 then 
         local_ip = get_router(ip).local_ip
     else
-        local_ip = get_router(ip).device_ports.first("port_number", port.to_int).get_lan_ip
+        local_ip = get_router(ip).used_ports.first("port_number", port.to_int).get_lan_ip
     end if
 
     meta_lib = ExploitManager.remote_lib(ip, port)
+    if typeof(meta_lib) == "Error" then return meta_lib
+    if meta_lib == null then return Error.init("Could not load library.")
     libname = meta_lib.lib_name
     libversion = meta_lib.version
-
-    if typeof(meta_lib) == "string" then return meta_lib
 
     // Check if the library is already stored
     if ExploitManager.check_libpath(libname, libversion) then
@@ -982,10 +1018,10 @@ ExploitCommands.local_attack = function(args)
     opt_val = args["opt_val"]
 
     meta_lib = ExploitManager.local_lib(path)
+    if typeof(meta_lib) == "Error" then return meta_lib
+    if meta_lib == null then return Error.init("Could not load library.")
     libname = meta_lib.lib_name
     libversion = meta_lib.version
-
-    if typeof(meta_lib) == "string" then return meta_lib
 
     // Check if the library is already stored
     if ExploitManager.check_libpath(libname, libversion) then
@@ -1024,13 +1060,16 @@ MiniClick.create_command("target", "Target a port for exploits").
 FileManager = {}
 FileManager.classID = "FileManager"
 
-FileManager.view_folder = function(file_object, path)
+// Walk a slash-separated path starting from file_object, supporting "." and ".."
+// segments and a leading "/" for absolute paths. Returns the resolved folder file,
+// or an Error if any segment does not exist.
+FileManager.resolve_path = function(file_object, path)
     if file_object == null or typeof(file_object) != "file" then return Error.init("File object not set.")
-    if path == null then path = "" else path = path.trim.split("/")
+    if path == null then path = [] else path = path.trim.split("/")
 
     temp_file = file_object
 
-    if path[0] == "" then
+    if path.len > 0 and path[0] == "" then
         while temp_file.parent != null
             temp_file = temp_file.parent
         end while
@@ -1055,13 +1094,24 @@ FileManager.view_folder = function(file_object, path)
         end if
     end for
 
-
+    return temp_file
 end function
 
 ////////////////////////////////////////////////////
 
 FileCommands = {}
 FileCommands.classID = "FileCommands"
+
+// Resolve a file-or-folder entry inside folder f by name. "." returns f itself.
+// Looks at files first, then folders. Returns the entry or Error.
+FileCommands._resolve_entry = function(f, name)
+    if name == "." then return f
+    entry = f.get_files.first("name", name)
+    if entry != null then return entry
+    entry = f.get_folders.first("name", name)
+    if entry != null then return entry
+    return Error.init("File not found: " + name)
+end function
 
 FileCommands.read_file = function(args)
     f = StateManager.get_focused_file()
@@ -1124,35 +1174,10 @@ FileCommands.change_dir = function(args)
     f = StateManager.get_focused_file()
     if typeof(f) == "Error" then return f
 
-    path = args["path"].trim.split("/")
+    result = FileManager.resolve_path(f, args["path"])
+    if typeof(result) == "Error" then return result
 
-    temp_file = f
-    if path[0] == "" then
-        while temp_file.parent != null
-            temp_file = temp_file.parent
-        end while
-
-        path = path[1:]
-    end if
-
-    for step in path
-        step = step.trim
-        if step == "" then continue
-        if step == ".." then
-            if temp_file.parent != null then
-                temp_file = temp_file.parent
-            end if
-        else if step == "." then
-            continue
-        else
-            temp_file = temp_file.get_folders.first("name", step)
-            if temp_file == null then
-                return Error.init("Folder not found: " + step)
-            end if
-        end if
-    end for
-
-    StateManager.cob["focused_object"]["file"] = temp_file // Direct reference needed to change object
+    StateManager.cob["focused_object"]["file"] = result // Direct reference needed to change object
 end function
 
 FileCommands.delete_file = function(args)
@@ -1200,15 +1225,8 @@ FileCommands.change_perms = function(args)
         return Error.init("Invalid permissions: " + permissions)
     end if
 
-    if filename == "." then
-        file = f
-    else
-        file = f.get_files.first("name", filename)
-    end if
-
-    if file == null then
-        return Error.init("File not found: " + filename)
-    end if
+    file = FileCommands._resolve_entry(f, filename)
+    if typeof(file) == "Error" then return file
 
     // First, change all permissions to 000.
     result = file.chmod("u-rwx", recursive)
@@ -1253,15 +1271,11 @@ FileCommands.change_group = function(args)
     group = args["group"]
     recursive = args["recursive"]
 
-    file = f.get_files.first("name", filename)
-    if file == null then
-        return Error.init("File not found: " + filename)
-    end if
+    file = FileCommands._resolve_entry(f, filename)
+    if typeof(file) == "Error" then return file
 
     result = file.set_group(group, recursive)
-    if result != "" then
-        return Error.init("Error changing group: " + result)
-    end if
+    if result != null and result != "" then return Error.init("Error changing group: " + result)
 end function
 
 FileCommands.change_owner = function(args)
@@ -1272,15 +1286,11 @@ FileCommands.change_owner = function(args)
     owner = args["owner"]
     recursive = args["recursive"]
 
-    file = f.get_files.first("name", filename)
-    if file == null then
-        return Error.init("File not found: " + filename)
-    end if
+    file = FileCommands._resolve_entry(f, filename)
+    if typeof(file) == "Error" then return file
 
     result = file.set_owner(owner, recursive)
-    if result != "" then
-        return Error.init("Error changing owner: " + result)
-    end if
+    if result != null and result != "" then return Error.init("Error changing group: " + result)
 end function
 
 FileCommands.copy_file = function(args)
@@ -1291,10 +1301,8 @@ FileCommands.copy_file = function(args)
     destination = args["destination"]
     newname = args["newname"]
 
-    file = f.get_files.first("name", filename)
-    if file == null then
-        return Error.init("File not found: " + filename)
-    end if
+    file = FileCommands._resolve_entry(f, filename)
+    if typeof(file) == "Error" then return file
 
     result = file.copy(destination, newname)
     if typeof(result) == "string" then
@@ -1310,10 +1318,8 @@ FileCommands.move_file = function(args)
     destination = args["destination"]
     newname = args["newname"]
 
-    file = f.get_files.first("name", filename)
-    if file == null then
-        return Error.init("File not found: " + filename)
-    end if
+    file = FileCommands._resolve_entry(f, filename)
+    if typeof(file) == "Error" then return file
 
     result = file.move(destination, newname)
     if typeof(result) == "string" then
@@ -1354,21 +1360,21 @@ MiniClick.create_command("rmdir", "Delete a folder").
 MiniClick.create_command("chmod", "Change file permissions").
     add_argument("filename", "The name of the file to change permissions for").
     add_argument("permissions", "The new permissions (octal, not rwx)").
-    add_option("recursive", "Apply changes recursively", false, "r").
+    add_option("recursive", "Apply changes recursively", false, "r", true).
     set_function(FileCommands["change_perms"]).
     build()
 
 MiniClick.create_command("chgrp", "Change file group").
     add_argument("filename", "The name of the file to change group for").
     add_argument("group", "The new group").
-    add_option("recursive", "Apply changes recursively", false, "r").
+    add_option("recursive", "Apply changes recursively", false, "r", true).
     set_function(FileCommands["change_group"]).
     build()
 
 MiniClick.create_command("chown", "Change file owner").
     add_argument("filename", "The name of the file to change owner for").
     add_argument("owner", "The new owner").
-    add_option("recursive", "Apply changes recursively", false, "r").
+    add_option("recursive", "Apply changes recursively", false, "r", true).
     set_function(FileCommands["change_owner"]).
     build()
 
@@ -1402,7 +1408,7 @@ ComputerCommands.kill_proc = function(args)
     if typeof(c) == "Error" then return c
 
     pid = args["pid"].to_int
-    if typeof(pid) != "number" then return "Invalid PID: " + args["pid"]
+    if typeof(pid) != "number" then return Error.init("Invalid PID: " + args["pid"])
     
     return c.close_program(pid)
 end function
@@ -1484,7 +1490,7 @@ MiniClick.create_command("adduser", "Add a new user").
 
 MiniClick.create_command("deluser", "Delete a user").
     add_argument("username", "The user to delete").
-    add_option("remove_home", "Remove the user's home directory", false, "r").
+    add_option("remove_home", "Remove the user's home directory", false, "r", true).
     set_function(ComputerCommands["remove_user"]).
     build()
 
@@ -1620,21 +1626,21 @@ MiniClick.create_command("shell", "Drop to a shell").
 MiniClick.create_command("build", "Build a file").
     add_argument("source_path", "The path to the source file").
     add_argument("destination_path", "The path to the destination folder").
-    add_option("can_import", "Allow the file to be imported", false, "i").
+    add_option("can_import", "Allow the file to be imported", false, "i", true).
     set_function(ShellCommands["build_file"]).
     build()
 
 MiniClick.create_command("get", "Get a file").
     add_argument("source_path", "The path to the source file").
     add_argument("destination_path", "The path to the destination folder").
-    add_option("to_relative", "Put the file in your current relative shell", false, "r").
+    add_option("to_relative", "Put the file in your current relative shell", false, "r", true).
     set_function(ShellCommands["get_file"]).
     build()
 
 MiniClick.create_command("put", "Put a file").
     add_argument("source_path", "The path to the source file").
     add_argument("destination_path", "The path to the destination folder").
-    add_option("from_relative", "Get the file from your current relative shell", false, "r").
+    add_option("from_relative", "Get the file from your current relative shell", false, "r", true).
     set_function(ShellCommands["put_file"]).
     build()
 
@@ -1694,6 +1700,6 @@ while true
     else if result != null then
         print(result)
     end if
-
-    StateManager.cob["layer"] = StateManager.cob["layer"] - 1
 end while
+
+StateManager.cob["layer"] = StateManager.cob["layer"] - 1
