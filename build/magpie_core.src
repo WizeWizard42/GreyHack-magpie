@@ -362,7 +362,7 @@ StateManager.set_object=function(object)
 type=typeof(object)
 if type=="number" then return type
 if type=="null" then return "unknown"
-if type=="shell" then
+if type=="shell" or type=="ftpShell" then
 self.cob["focused_object"]={"uid":md5(str(rnd))[:6],"file":object.host_computer.File("/"),"computer":object.host_computer,"shell":object,"info":{"user":"unknown","domain":object.host_computer.get_name,"pub_ip":object.host_computer.public_ip,"local_ip":object.host_computer.local_ip}}
 self.cob["stored_objects"].push(self.cob["focused_object"])
 end if
@@ -1088,6 +1088,26 @@ if confirm=="y" then
 return launch(s,program,params)
 end if
 end function
+ShellCommands.connect_service=function(args)
+s=StateManager.get_focused_shell
+if typeof(s)=="Error" then return s
+service=args["service"]
+ip=args["ip"]
+port=args["port"]
+user=args["user"]
+password=args["password"]
+if service=="ssh" then
+shell=s.connect_service(ip,port.to_int,user,password,"ssh")
+else if service=="ftp" then
+shell=s.connect_service(ip,port.to_int,user,password,"ftp")
+else
+return Error.init("Unsupported service: "+service)
+end if
+if typeof(shell)=="string" then return Error.init("Error connecting to service: "+shell)
+if typeof(shell)==null then return Error.init("Unknown error connecting to service.")
+result=StateManager.set_object(shell)
+if result=="string" then return Error.init("Error setting object: "+result)
+end function
 ShellCommands.try_ping=function(args)
 s=StateManager.get_focused_shell
 if typeof(s)=="Error" then return s
@@ -1116,6 +1136,7 @@ MiniClick.create_command("build","Build a file").add_argument("source_path","The
 MiniClick.create_command("get","Get a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("to_relative","Put the file in your current relative shell",0,"r",1).set_function(ShellCommands["get_file"]).build
 MiniClick.create_command("put","Put a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("from_relative","Get the file from your current relative shell",0,"r",1).set_function(ShellCommands["put_file"]).build
 MiniClick.create_command("launch","Run an external program").add_argument("program","The program to run").add_argument("params","The parameters to pass to the program",1).set_function(ShellCommands["run_command"]).build
+MiniClick.create_command("connect","Connect to a service").add_argument("service","The type of service to connect to (ssh, ftp)").add_argument("ip","The IP address of the service").add_argument("port","The port of the service").add_argument("user","The username to authenticate with").add_argument("password","The password to authenticate with").set_function(ShellCommands["connect_service"]).build
 MiniClick.create_command("ping","Ping an IP address").add_argument("ip","The IP address to ping").set_function(ShellCommands["try_ping"]).build
 MiniClick.create_command("pivot","Pivot to current focus, if it's a shell").set_function(ShellCommands["pivot_host"]).build
 StateManager.init

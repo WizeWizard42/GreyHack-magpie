@@ -1,4 +1,4 @@
-// Made by Merlin Newcomb in 2024
+// Made by Merlin Newcomb in 2026
 
 ////////////////////////////////////////////////////
 // Abstract classes and type extensions
@@ -6,7 +6,7 @@
 
 //LinQ lib functionality for greyscript
 //By MachaCeleste 20240205
-//Edited by Merlin Newcomb 2024
+//Edited by Merlin Newcomb 2026
 
 matches_criteria = function(item, key, value, negate = false)
     result = item[key] == value
@@ -147,7 +147,7 @@ string.color = function(hexc)
     return "<color=" + hexc + ">" + self + "</color>"
 end function
 
-// Miniclick by Merlin Newcomb 2024
+// Miniclick by Merlin Newcomb 2026
 
 MiniClick = {}
 
@@ -459,7 +459,7 @@ StateManager.set_object = function(object)
     if type == "number" then return type
     if type == "null" then return "unknown"
 
-    if type == "shell" then
+    if type == "shell" or type == "ftpShell" then
         self.cob["focused_object"] = {
             "uid": md5(str(rnd))[:6],
             "file": object.host_computer.File("/"),
@@ -1588,6 +1588,33 @@ ShellCommands.run_command = function(args)
     end if
 end function
 
+ShellCommands.connect_service = function(args)
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
+
+    service = args["service"]
+    ip = args["ip"]
+    port = args["port"]
+    user = args["user"]
+    password = args["password"]
+
+    if service == "ssh" then
+        shell = s.connect_service(ip, port.to_int, user, password, "ssh")
+    else if service == "ftp" then
+        shell = s.connect_service(ip, port.to_int, user, password, "ftp")
+    else
+        return Error.init("Unsupported service: " + service)
+    end if
+
+    if typeof(shell) == "string" then return Error.init("Error connecting to service: " + shell)
+    if typeof(shell) == null then return Error.init("Unknown error connecting to service.")
+
+    result = StateManager.set_object(shell)
+
+    if result == "string" then return Error.init("Error setting object: " + result)
+
+end function
+
 ShellCommands.try_ping = function(args)
     s = StateManager.get_focused_shell()
     if typeof(s) == "Error" then return s
@@ -1648,6 +1675,15 @@ MiniClick.create_command("launch", "Run an external program").
     add_argument("program", "The program to run").
     add_argument("params", "The parameters to pass to the program", true).
     set_function(ShellCommands["run_command"]).
+    build()
+
+MiniClick.create_command("connect", "Connect to a service").
+    add_argument("service", "The type of service to connect to (ssh, ftp)").
+    add_argument("ip", "The IP address of the service").
+    add_argument("port", "The port of the service").
+    add_argument("user", "The username to authenticate with").
+    add_argument("password", "The password to authenticate with").
+    set_function(ShellCommands["connect_service"]).
     build()
 
 MiniClick.create_command("ping", "Ping an IP address").
