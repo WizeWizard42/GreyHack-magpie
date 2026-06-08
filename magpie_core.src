@@ -1049,7 +1049,7 @@ end function
 
 ExploitCommands.portenum = function(args)
     ip = args["ip"]
-    return ExploitManager.port_enum(ip)
+    return ExploitManager.full_enum(ip)
 end function
 
 ExploitCommands.target_port = function(args)
@@ -1709,9 +1709,8 @@ ShellCommands.connect_service = function(args)
     if typeof(shell) == null then return Error.init("Unknown error connecting to service.")
 
     result = StateManager.set_object(shell)
-
     if result == "string" then return Error.init("Error setting object: " + result)
-
+    StateManager.cob["focused_object"]["info"]["user"] = user
 end function
 
 ShellCommands.try_ping = function(args)
@@ -1726,6 +1725,21 @@ ShellCommands.try_ping = function(args)
     if is_pingable then return "Ping successful."
 
     return "Ping failed."
+end function
+
+ShellCommands.try_sudo = function(args)
+    s = StateManager.get_focused_shell()
+    if typeof(s) == "Error" then return s
+
+    user = args["user"]
+    password = args["password"]
+
+    result = get_shell(user, password)
+
+    if result == null or typeof(result) != "shell" then return Error.init("Error trying to sudo: user or password invalid.")
+
+    StateManager.set_object(result)
+    StateManager.cob["focused_object"]["info"]["user"] = user
 end function
 
 ShellCommands.pivot_host = function(args)
@@ -1784,6 +1798,12 @@ MiniClick.create_command("connect", "Connect to a service").
 MiniClick.create_command("ping", "Ping an IP address").
     add_argument("ip", "The IP address to ping").
     set_function(ShellCommands["try_ping"]).
+    build()
+
+MiniClick.create_command("sudo", "Attempt to sudo to another user").
+    add_argument("user", "The user to sudo to").
+    add_argument("password", "The password of the user").
+    set_function(ShellCommands["try_sudo"]).
     build()
 
 MiniClick.create_command("pivot", "Pivot to current focus, if it's a shell").
