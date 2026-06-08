@@ -400,8 +400,8 @@ StateManager.init = function()
     self.cob.layer = self.cob.layer + 1
     self["relative_object"] = self.cob["focused_object"]
 
-    MiniClick.run(("put " + self.cob["home_path"] + "/librshell.so " + self["relative_object"]["file"].path).trim.split(" "))
-    MiniClick.run(("put " + self.cob["home_path"] + "/metaxploit.so " + self["relative_object"]["file"].path).trim.split(" "))
+    MiniClick.run(("put " + self.cob["home_path"] + "/librshell.so " + self.get_relative_file().path).trim.split(" "))
+    MiniClick.run(("put " + self.cob["home_path"] + "/metaxploit.so " + self.get_relative_file().path).trim.split(" "))
 
     self.cob["remote_metax"] = include_lib(self["relative_object"]["file"].path + "/metaxploit.so")
 end function
@@ -1562,6 +1562,19 @@ ComputerCommands.create_file = function(args)
     return c.touch(path, filename)
 end function
 
+ComputerCommands.wipe_log = function(args)
+    c = StateManager.get_focused_computer()
+    if typeof(c) == "Error" then return c
+
+    r = c.touch("/var", "fstab")
+    if typeof(r) == "string" then return Error.init("Error creating file: " + r)
+    f = c.File("/var/fstab")
+    if f == null then return Error.init("Error accessing file after creation.")
+    f.set_content("rosebud")
+    r = f.move("/var", "system.log")
+    if typeof(r) == "string" then return Error.init("Error moving file: " + r)
+end function
+
 ComputerCommands.create_folder = function(args)
     c = StateManager.get_focused_computer()
     if typeof(c) == "Error" then return c
@@ -1609,6 +1622,10 @@ MiniClick.create_command("touch", "Create a new file").
     add_argument("path", "The path to create the file in").
     add_argument("filename", "The name of the new file").
     set_function(ComputerCommands["create_file"]).
+    build()
+
+MiniClick.create_command("logwipe", "Wipe the system log").
+    set_function(ComputerCommands["wipe_log"]).
     build()
 
 MiniClick.create_command("mkdir", "Create a new folder").
@@ -1672,6 +1689,34 @@ ShellCommands.put_file = function(args)
     end if
 
     return scp(StateManager.get_home_shell(), source_path, destination_path, s)
+end function
+
+ShellCommands.force_read = function(args)
+    return "Doesn't work, but code is still here if you want to look."
+    s = StateManager.get_focused_shell()
+    c = StateManager.get_focused_computer()
+    f = StateManager.get_focused_file()
+    if typeof(s) == "Error" then return s
+
+    path = args["path"]
+
+    temp_name = md5(str(rnd))[:6]
+    result = c.touch(f.path, temp_name + ".src")
+    if typeof(result) == "string" then return Error.init("Error creating temp file: " + result)
+
+    result = c.File(f.path + "/" + temp_name + ".src").set_content("get_custom_object._ret = ""import_" + "code(""" + path + """)""")
+    if typeof(result) == "string" then return Error.init("Error writing temp file: " + result)
+
+    r = s.build(f.path + "/" + temp_name + ".src", f.path, false)
+    if typeof(r) == "string" then return Error.init("Error building temp file: " + r)
+    r = s.launch(f.path + "/" + temp_name)
+    if typeof(r) == "string" then return Error.init("Error launching temp file: " + r)
+    c.File(f.path + "/" + temp_name + ".src").delete
+    c.File(f.path + "/" + temp_name).delete
+
+    result = "Force read attempted:\n"
+    result = result + StateManager.cob._ret + "\n"
+    return result
 end function
 
 ShellCommands.run_command = function(args)
@@ -1778,6 +1823,11 @@ MiniClick.create_command("put", "Put a file").
     add_argument("destination_path", "The path to the destination folder").
     add_option("from_relative", "Get the file from your current relative shell", false, "r", true).
     set_function(ShellCommands["put_file"]).
+    build()
+
+MiniClick.create_command("forceread", "Force the target to read a file and return its contents").
+    add_argument("path", "The path to the file to read").
+    set_function(ShellCommands["force_read"]).
     build()
 
 MiniClick.create_command("launch", "Run an external program").
