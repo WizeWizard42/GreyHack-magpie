@@ -392,7 +392,7 @@ StateManager.classID = "StateManager"
 StateManager.cob = @get_custom_object // Persistent storage for the state manager
 
 StateManager.init = function()
-    if not self.cob.hasIndex("layer") then 
+    if not self.cob.hasIndex("layer") or self.cob.layer == -1 or self.cob.layer == null then 
         self.first_layer()
         return
     end if
@@ -445,7 +445,86 @@ StateManager.first_layer = function()
 
     self.cob["partial_object"] = {}
     self.cob["stored_objects"] = []
+
+    //self.cob["plugin_stores"] structure:
+    //{
+    //    plugin_name: {
+    //        "name": string,
+    //        "description": string,
+    //        "helpers": { // Optional helper functions that the plugin exposes to other plugins and itself
+    //            helper_name: @func_ref,
+    //            ...
+    //        },
+    //        "commands": [ // Optional commands that the plugin adds to the CLI
+    //            {
+    //                "name": string,
+    //                "description": string,
+    //                "options": { // See MiniClick command options structure
+    //                    option_name: {
+    //                        "description": string,
+    //                        "default": any,
+    //                        "short_name": string,
+    //                        "is_flag": bool,
+    //                    },
+    //                    ...
+    //                },
+    //                "arguments": [ // See MiniClick command arguments structure
+    //                    {
+    //                        "name": string,
+    //                        "description": string,
+    //                        "is_rest": bool,
+    //                    },
+    //                    ...
+    //                ],
+    //                "function": @func_ref, // The function to execute for this command
+    //            },
+    //            ...
+    //    },
+    //}
+
     self.cob["plugin_stores"] = {}
+
+    s = get_shell
+    c = s.host_computer
+    plugin_dir = self.cob["home_path"] + "/plugins"
+    
+    if not c.File(plugin_dir) then
+        c.create_folder(self.cob["home_path"], "plugins")
+    end if
+    
+    plugin_folder = c.File(plugin_dir)
+    if plugin_folder then
+        for p_file in plugin_folder.get_files
+            if p_file.name.indexOf(".src") == null then continue
+            
+            s.build(p_file.path, self.cob["home_path"] + "/plugins", false)
+            s.launch(self.cob["home_path"] + "/plugins/" + p_file.name.remove(".src"))
+            
+            c.File(self.cob["home_path"] + "/plugins/" + p_file.name.remove(".src")).delete
+        end for
+        
+        for plugin_name in self.cob["plugin_stores"].indexes
+            p_data = self.cob["plugin_stores"][plugin_name]
+
+            for cmd in p_data.commands
+                builder = MiniClick.create_command(cmd.name, cmd.description)
+
+                if cmd.hasIndex("arguments") then
+                    for arg in cmd.arguments
+                        builder.add_argument(arg.name, arg.description, arg.hasIndex("is_rest") and arg.is_rest)
+                    end for
+                end if
+
+                if cmd.hasIndex("options") then
+                    for opt in cmd.options
+                        builder.add_option(opt.name, opt.description, opt.default, opt.short_name, opt.is_flag)
+                    end for
+                end if
+
+                builder.set_function(cmd["function"]).build()
+            end for
+        end for
+    end if
 
     self.set_object(get_shell)
     self.cob["focused_object"].info.user = active_user
@@ -1573,6 +1652,7 @@ ComputerCommands.wipe_log = function(args)
     f.set_content("rosebud")
     r = f.move("/var", "system.log")
     if typeof(r) == "string" then return Error.init("Error moving file: " + r)
+    return "System log wiped."
 end function
 
 ComputerCommands.create_folder = function(args)
@@ -1871,7 +1951,7 @@ StateManager.init()
 
 // This whole thing will be rewritten, but works for now
 while true
-    prompt_text = StateManager.cob["focused_object"].info.user + 
+    prompt_text = "(" + StateManager.cob["layer"] + ") " + StateManager.cob["focused_object"].info.user + 
     "@" + StateManager.cob["focused_object"].info.pub_ip + 
     ": " + StateManager.get_focused_file().path + "# "
 

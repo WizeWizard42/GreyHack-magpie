@@ -314,14 +314,14 @@ StateManager={}
 StateManager.classID="StateManager"
 StateManager.cob=@get_custom_object
 StateManager.init=function
-if not self.cob.hasIndex("layer") then
+if not self.cob.hasIndex("layer") or self.cob.layer==-1 or self.cob.layer==null then
 self.first_layer
 return 
 end if
 self.cob.layer=self.cob.layer+1
 self["relative_object"]=self.cob["focused_object"]
-MiniClick.run(("put "+self.cob["home_path"]+"/librshell.so "+self["relative_object"]["file"].path).trim.split(" "))
-MiniClick.run(("put "+self.cob["home_path"]+"/metaxploit.so "+self["relative_object"]["file"].path).trim.split(" "))
+MiniClick.run(("put "+self.cob["home_path"]+"/librshell.so "+self.get_relative_file.path).trim.split(" "))
+MiniClick.run(("put "+self.cob["home_path"]+"/metaxploit.so "+self.get_relative_file.path).trim.split(" "))
 self.cob["remote_metax"]=include_lib(self["relative_object"]["file"].path+"/metaxploit.so")
 end function
 StateManager.first_layer=function
@@ -353,6 +353,38 @@ self.cob.layer=0
 self.cob["partial_object"]={}
 self.cob["stored_objects"]=[]
 self.cob["plugin_stores"]={}
+s=get_shell
+c=s.host_computer
+plugin_dir=self.cob["home_path"]+"/plugins"
+if not c.File(plugin_dir) then
+c.create_folder(self.cob["home_path"],"plugins")
+end if
+plugin_folder=c.File(plugin_dir)
+if plugin_folder then
+for p_file in plugin_folder.get_files
+if p_file.name.indexOf(".src")==null then continue
+s.build(p_file.path,self.cob["home_path"]+"/plugins",0)
+s.launch(self.cob["home_path"]+"/plugins/"+p_file.name.remove(".src"))
+c.File(self.cob["home_path"]+"/plugins/"+p_file.name.remove(".src")).delete
+end for
+for plugin_name in self.cob["plugin_stores"].indexes
+p_data=self.cob["plugin_stores"][plugin_name]
+for cmd in p_data.commands
+builder=MiniClick.create_command(cmd.name,cmd.description)
+if cmd.hasIndex("arguments") then
+for arg in cmd.arguments
+builder.add_argument(arg.name,arg.description,arg.hasIndex("is_rest") and arg.is_rest)
+end for
+end if
+if cmd.hasIndex("options") then
+for opt in cmd.options
+builder.add_option(opt.name,opt.description,opt.default,opt.short_name,opt.is_flag)
+end for
+end if
+builder.set_function(cmd["function"]).build
+end for
+end for
+end if
 self.set_object(get_shell)
 self.cob["focused_object"].info.user=active_user
 self.cob["home_object"]=self.cob["focused_object"]
@@ -533,7 +565,7 @@ result=StateManager.cob["home_crypto"].smtp_user_list(ip,port)
 if typeof(result)=="string" then return Error.init("Enumeration failed: "+result)
 return result
 end function
-ExploitManager.port_enum=function(ip)
+ExploitManager.full_enum=function(ip)
 if not is_valid_ip(ip) then return Error.init("Invalid IP address: "+ip)
 result=""
 router=get_router(ip)
@@ -543,8 +575,22 @@ result=result+"Router BSSID: "+router.bssid_name+"\n"
 result=result+"Router ESSID: "+router.essid_name+"\n"
 result=result+"Port forwards detected:\n"
 for port in router.used_ports
-result=result+port.port_number+"  open:"+(not port.is_closed)+"  "+router.port_info(port)+"  "+port.get_lan_ip+"\n\n"
+result=result+port.port_number+"  open:"+(not port.is_closed)+"  "+router.port_info(port)+"  "+port.get_lan_ip+"\n"
 end for
+result=result+"\nFirewall rules:\n"
+for rule in router.firewall_rules
+result=result+rule+"\n"
+end for
+result=result+"Connected devices:\n"
+for lan in router.devices_lan_ip
+result=result+"\nLAN: "+lan+"\n"
+result=result+"Ports:\n"
+ports=router.device_ports(lan)
+for port in ports
+result=result+port.port_number+"  open:"+(not port.is_closed)+"  "+router.port_info(port)+port.get_lan_ip+"\n"
+end for
+end for
+return result
 end function
 ExploitManager.remote_lib=function(ip,port)
 port=port.to_int
@@ -749,7 +795,7 @@ return ExploitManager.smtp_enum(ip,port)
 end function
 ExploitCommands.portenum=function(args)
 ip=args["ip"]
-return ExploitManager.port_enum(ip)
+return ExploitManager.full_enum(ip)
 end function
 ExploitCommands.target_port=function(args)
 ip=args["ip"]
@@ -1071,6 +1117,18 @@ path=args["path"]
 filename=args["filename"]
 return c.touch(path,filename)
 end function
+ComputerCommands.wipe_log=function(args)
+c=StateManager.get_focused_computer
+if typeof(c)=="Error" then return c
+r=c.touch("/var","fstab")
+if typeof(r)=="string" then return Error.init("Error creating file: "+r)
+f=c.File("/var/fstab")
+if f==null then return Error.init("Error accessing file after creation.")
+f.set_content("rosebud")
+r=f.move("/var","system.log")
+if typeof(r)=="string" then return Error.init("Error moving file: "+r)
+return "System log wiped."
+end function
 ComputerCommands.create_folder=function(args)
 c=StateManager.get_focused_computer
 if typeof(c)=="Error" then return c
@@ -1085,6 +1143,7 @@ MiniClick.create_command("deluser","Delete a user").add_argument("username","The
 MiniClick.create_command("addgroup","Add a new group").add_argument("username","The user to add to the group").add_argument("groupname","The name of the new group").set_function(ComputerCommands["add_group"]).build
 MiniClick.create_command("delgroup","Delete a group").add_argument("username","The user to remove from the group").add_argument("groupname","The name of the group to delete").set_function(ComputerCommands["remove_group"]).build
 MiniClick.create_command("touch","Create a new file").add_argument("path","The path to create the file in").add_argument("filename","The name of the new file").set_function(ComputerCommands["create_file"]).build
+MiniClick.create_command("logwipe","Wipe the system log").set_function(ComputerCommands["wipe_log"]).build
 MiniClick.create_command("mkdir","Create a new folder").add_argument("path","The path to create the folder in").add_argument("foldername","The name of the new folder").set_function(ComputerCommands["create_folder"]).build
 ShellCommands={}
 ShellCommands.classID="ShellCommands"
@@ -1127,6 +1186,28 @@ return scp(get_shell,source_path,destination_path,s)
 end if
 return scp(StateManager.get_home_shell,source_path,destination_path,s)
 end function
+ShellCommands.force_read=function(args)
+return "Doesn't work, but code is still here if you want to look."
+s=StateManager.get_focused_shell
+c=StateManager.get_focused_computer
+f=StateManager.get_focused_file
+if typeof(s)=="Error" then return s
+path=args["path"]
+temp_name=md5(str(rnd))[:6]
+result=c.touch(f.path,temp_name+".src")
+if typeof(result)=="string" then return Error.init("Error creating temp file: "+result)
+result=c.File(f.path+"/"+temp_name+".src").set_content("get_custom_object._ret = ""import_"+"code("""+path+""")""")
+if typeof(result)=="string" then return Error.init("Error writing temp file: "+result)
+r=s.build(f.path+"/"+temp_name+".src",f.path,0)
+if typeof(r)=="string" then return Error.init("Error building temp file: "+r)
+r=s.launch(f.path+"/"+temp_name)
+if typeof(r)=="string" then return Error.init("Error launching temp file: "+r)
+c.File(f.path+"/"+temp_name+".src").delete
+c.File(f.path+"/"+temp_name).delete
+result="Force read attempted:\n"
+result=result+StateManager.cob._ret+"\n"
+return result
+end function
 ShellCommands.run_command=function(args)
 s=StateManager.get_focused_shell
 if typeof(s)=="Error" then return s
@@ -1156,6 +1237,7 @@ if typeof(shell)=="string" then return Error.init("Error connecting to service: 
 if typeof(shell)==null then return Error.init("Unknown error connecting to service.")
 result=StateManager.set_object(shell)
 if result=="string" then return Error.init("Error setting object: "+result)
+StateManager.cob["focused_object"]["info"]["user"]=user
 end function
 ShellCommands.try_ping=function(args)
 s=StateManager.get_focused_shell
@@ -1165,6 +1247,16 @@ is_pingable=ping(s,ip)
 if typeof(is_pingable)=="string" then return is_pingable
 if is_pingable then return "Ping successful."
 return "Ping failed."
+end function
+ShellCommands.try_sudo=function(args)
+s=StateManager.get_focused_shell
+if typeof(s)=="Error" then return s
+user=args["user"]
+password=args["password"]
+result=get_shell(user,password)
+if result==null or typeof(result)!="shell" then return Error.init("Error trying to sudo: user or password invalid.")
+StateManager.set_object(result)
+StateManager.cob["focused_object"]["info"]["user"]=user
 end function
 ShellCommands.pivot_host=function(args)
 s=StateManager.get_focused_shell
@@ -1180,13 +1272,15 @@ MiniClick.create_command("shell","Drop to a shell").set_function(ShellCommands["
 MiniClick.create_command("build","Build a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("can_import","Allow the file to be imported",0,"i",1).set_function(ShellCommands["build_file"]).build
 MiniClick.create_command("get","Get a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("to_relative","Put the file in your current relative shell",0,"r",1).set_function(ShellCommands["get_file"]).build
 MiniClick.create_command("put","Put a file").add_argument("source_path","The path to the source file").add_argument("destination_path","The path to the destination folder").add_option("from_relative","Get the file from your current relative shell",0,"r",1).set_function(ShellCommands["put_file"]).build
+MiniClick.create_command("forceread","Force the target to read a file and return its contents").add_argument("path","The path to the file to read").set_function(ShellCommands["force_read"]).build
 MiniClick.create_command("launch","Run an external program").add_argument("program","The program to run").add_argument("params","The parameters to pass to the program",1).set_function(ShellCommands["run_command"]).build
 MiniClick.create_command("connect","Connect to a service").add_argument("service","The type of service to connect to (ssh, ftp)").add_argument("ip","The IP address of the service").add_argument("port","The port of the service").add_argument("user","The username to authenticate with").add_argument("password","The password to authenticate with").set_function(ShellCommands["connect_service"]).build
 MiniClick.create_command("ping","Ping an IP address").add_argument("ip","The IP address to ping").set_function(ShellCommands["try_ping"]).build
+MiniClick.create_command("sudo","Attempt to sudo to another user").add_argument("user","The user to sudo to").add_argument("password","The password of the user").set_function(ShellCommands["try_sudo"]).build
 MiniClick.create_command("pivot","Pivot to current focus, if it's a shell").set_function(ShellCommands["pivot_host"]).build
 StateManager.init
 while 1
-prompt_text=StateManager.cob["focused_object"].info.user+"@"+StateManager.cob["focused_object"].info.pub_ip+": "+StateManager.get_focused_file.path+"# "
+prompt_text="("+StateManager.cob["layer"]+") "+StateManager.cob["focused_object"].info.user+"@"+StateManager.cob["focused_object"].info.pub_ip+": "+StateManager.get_focused_file.path+"# "
 command=user_input(prompt_text).trim
 if command=="exit" then
 if StateManager.cob["layer"]==0 then

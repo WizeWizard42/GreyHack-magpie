@@ -1,0 +1,26 @@
+cob = @get_custom_object
+
+example_plugin = {
+    "name": "example_plugin",
+    "description": "This is an example.",
+    "helpers": {},
+    "commands": [],
+}
+
+example_plugin.helpers.example_helper = function()
+    return "Example helper called."
+end function
+
+cmd_example = {
+    "name": "example",
+    "description": "An example command.",
+    "arguments": [],
+    "options": {},
+}
+cmd_example["function"] = function(args)
+    result = example_plugin.helpers.example_helper()
+    return result
+end function
+
+example_plugin.commands.push(cmd_example)
+cob.plugin_stores["example_plugin"] = example_plugin
