@@ -397,6 +397,7 @@ StateManager.init = function()
         return
     end if
 
+    self.load_plugins()
     self.cob.layer = self.cob.layer + 1
     self["relative_object"] = self.cob["focused_object"]
 
@@ -436,8 +437,6 @@ StateManager.first_layer = function()
     self.cob["home_crypto"] = include_lib(current_path + "/crypto.so")
 
     self.cob["exploit_store"] = {}  // Structure: {"libname": {"version": {"address": {"string": ["root/user/guest", "shell/computer/file"], "string": ["root/user/guest", "shell/computer/file"]}, ...}}}
-
-    self.cob["remote_rlib"] = null // Only sets once reverse shell is manually set
 
     self.cob["home_path"] = current_path
 
@@ -479,6 +478,11 @@ StateManager.first_layer = function()
     //                "function": @func_ref, // The function to execute for this command
     //            },
     //            ...
+    //        ],
+    //        "stores": { // Optional persistent storage for the plugin
+    //            store_name: any,
+    //            ...
+    //        },
     //    },
     //}
 
@@ -502,34 +506,41 @@ StateManager.first_layer = function()
             
             c.File(self.cob["home_path"] + "/plugins/" + p_file.name.remove(".src")).delete
         end for
-        
-        for plugin_name in self.cob["plugin_stores"].indexes
-            p_data = self.cob["plugin_stores"][plugin_name]
-
-            for cmd in p_data.commands
-                builder = MiniClick.create_command(cmd.name, cmd.description)
-
-                if cmd.hasIndex("arguments") then
-                    for arg in cmd.arguments
-                        builder.add_argument(arg.name, arg.description, arg.hasIndex("is_rest") and arg.is_rest)
-                    end for
-                end if
-
-                if cmd.hasIndex("options") then
-                    for opt in cmd.options
-                        builder.add_option(opt.name, opt.description, opt.default, opt.short_name, opt.is_flag)
-                    end for
-                end if
-
-                builder.set_function(cmd["function"]).build()
-            end for
-        end for
     end if
+
+    self.load_plugins()
 
     self.set_object(get_shell)
     self.cob["focused_object"].info.user = active_user
     self.cob["home_object"] = self.cob["focused_object"]
     self["relative_object"] = self.cob["focused_object"]
+end function
+
+StateManager.load_plugins = function()
+    for plugin_name in self.cob["plugin_stores"].indexes
+        p_data = self.cob["plugin_stores"][plugin_name]
+
+        for cmd in p_data.commands
+            builder = MiniClick.create_command(cmd.name, cmd.description)
+
+            if cmd.hasIndex("arguments") then
+                for arg in cmd.arguments
+                    builder.add_argument(arg.name, arg.description, arg.hasIndex("is_rest") and arg.is_rest)
+                end for
+            end if
+
+            if cmd.hasIndex("options") then
+                for opt in cmd.options.indexes
+                    opt_data = cmd.options[opt]
+                    builder.add_option(opt_data.name, opt_data.description, opt_data.default, opt_data.short_name, opt_data.is_flag)
+                end for
+            end if
+
+            builder.set_function(cmd["function"]).build()
+        end for
+    end for
+
+    print(self.cob["plugin_stores"].len + " plugins loaded.")
 end function
 
 StateManager.set_object = function(object)    
@@ -1806,7 +1817,7 @@ ShellCommands.run_command = function(args)
     program = args["program"]
     params = args["params"].join(" ")
 
-    confirm = user_input("Are you sure you want to run an external program? You will lose your current context. (y/n): ")
+    confirm = user_input("Are you sure you want to run an external program? (y/n): ")
     if confirm == "y" then
         return launch(s, program, params)
     end if
@@ -1956,6 +1967,7 @@ while true
     ": " + StateManager.get_focused_file().path + "# "
 
     command = user_input(prompt_text).trim
+    if command == "" then continue
     if command == "exit" then
         if StateManager.cob["layer"] == 0 then
             for lib in StateManager.cob["exploit_store"].indexes

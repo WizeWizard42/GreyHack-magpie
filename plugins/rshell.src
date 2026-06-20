@@ -1,0 +1,135 @@
+cob = @get_custom_object
+
+rshell_plugin = {
+    "name": "rshell_plugin",
+    "description": "Reverse shell manager.",
+    "helpers": {},
+    "commands": [],
+    "stores": {},
+}
+
+rshell_plugin.helpers.rshell_setlib = function()
+    rshell_plugin.stores["rshell_lib"] = cob["remote_metax"]
+    return "Reverse shell library set."
+end function
+
+rshell_plugin.helpers.rshell_install_server = function()
+    StateManager.get_home_shell().scp("/root/VulnLibs/librshell.so", StateManager.get_relative_computer().File("/lib"), StateManager.get_relative_shell())
+
+    rshelld = include_lib("/lib/librshell.so")
+    if not rshelld then return Error.init("Failed to install reverse shell server.")
+
+    result = rshelld.install_service
+    if result != true then return Error.init("Error installing rshell: " + result)
+end function
+
+rshell_plugin.helpers.rshell_update = function()
+    if not rshell_plugin.stores.hasIndex("rshell_lib") then return Error.init("Reverse shell library not set. Run rinstall first.")
+    clients = rshell_plugin.stores["rshell_lib"].rshell_server
+    if typeof(clients) == "string" then return Error.init("Error updating reverse shell clients: " + clients)
+    if typeof(clients) != "list" then return Error.init("Unexpected result type: " + typeof(clients))
+    if clients.len == 0 then return "No active reverse shell clients."
+    
+    rshell_plugin.stores["clients"] = clients
+    return rshell_plugin.stores["clients"]
+end function
+
+rshell_plugin.helpers.rshell_connect = function(ip, port, proc="Terminal.exe")
+    if not rshell_plugin.stores.hasIndex("rshell_lib") then return Error.init("Reverse shell library not set. Run rinstall first.")
+    result = rshell_plugin.stores["rshell_lib"].rshell_client(ip, port, proc)
+    if typeof(result) == "string" then return Error.init("Error connecting reverse shell: " + result)
+
+    return "Reverse shell connection initiated."
+end function
+
+rshell_plugin.helpers.rshell_use_client = function(client)
+    if not rshell_plugin.stores.hasIndex("clients") then return Error.init("No clients in store.")
+    if client < 0 or client >= rshell_plugin.stores["clients"].len then return Error.init("Client index out of range.")
+    return StateManager.set_object(rshell_plugin.stores["clients"][client])
+end function
+
+
+cmd_rinstall = {
+    "name": "rinstall",
+    "description": "Install the reverse shell library on the target. Must have librshell.so in /root/VulnLibs/ on your home machine.",
+    "arguments": [],
+    "options": {},
+}
+cmd_rinstall["function"] = function(args)
+    result = rshell_plugin.helpers.rshell_install_server()
+    if typeof(result) == "Error" then return result
+    
+    return rshell_plugin.helpers.rshell_setlib()
+end function
+
+cmd_rlist = {
+    "name": "rlist",
+    "description": "List active reverse shell clients.",
+    "arguments": [],
+    "options": {},
+}
+cmd_rlist["function"] = function(args)
+    clients = rshell_plugin.helpers.rshell_update()
+    if typeof(clients) == "Error" then return clients
+    if typeof(clients) == "string" then
+        if not rshell_plugin.stores.hasIndex("clients") then return clients
+        result = clients + "\nPrinting old client list from store.\n"
+        clients = rshell_plugin.stores["clients"]
+    end if
+
+
+    for i in range(0, clients.len - 1)
+		print("\n<b>Shell (" + (i) + ")</b>\nPublic IP: " + clients[i].host_computer.public_ip + "\nLocal IP: " + clients[i].host_computer.local_ip)
+	end for
+end function
+
+cmd_rconnect = {
+    "name": "rconnect",
+    "description": "Connect to a reverse shell client.",
+    "arguments": [
+        {"name": "IP", "description": "The target IP to connect to."},
+        {"name": "port", "description": "The port to connect to."},
+    ],
+    "options": {
+        "process": {
+            "name": "process",
+            "description": "The process to spawn on the target (default: Terminal.exe).",
+            "default": "Terminal.exe",
+            "short_name": "p",
+            "is_flag": false,
+        },
+    },
+}
+cmd_rconnect["function"] = function(args)
+    ip = args.IP
+    port = args.port
+    proc = args.process
+
+    result = rshell_plugin.helpers.rshell_connect(ip, port, proc)
+    if typeof(result) == "Error" then return result
+
+    return result
+end function
+
+cmd_ruse = {
+    "name": "ruse",
+    "description": "Use a reverse shell client from the list.",
+    "arguments": [
+        {"name": "index", "description": "The index of the client to use from the rlist command."},
+    ],
+    "options": {},
+}
+cmd_ruse["function"] = function(args)
+    index = args.index
+    result = rshell_plugin.helpers.rshell_use_client(index)
+    if typeof(result) == "Error" then return result
+
+    return "Focused."
+end function
+
+
+rshell_plugin.commands.push(cmd_rinstall)
+rshell_plugin.commands.push(cmd_rlist)
+rshell_plugin.commands.push(cmd_rconnect)
+rshell_plugin.commands.push(cmd_ruse)
+cob.plugin_stores["rshell_plugin"] = rshell_plugin

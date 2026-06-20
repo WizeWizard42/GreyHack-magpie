@@ -318,6 +318,7 @@ if not self.cob.hasIndex("layer") or self.cob.layer==-1 or self.cob.layer==null 
 self.first_layer
 return 
 end if
+self.load_plugins
 self.cob.layer=self.cob.layer+1
 self["relative_object"]=self.cob["focused_object"]
 MiniClick.run(("put "+self.cob["home_path"]+"/librshell.so "+self.get_relative_file.path).trim.split(" "))
@@ -347,7 +348,6 @@ self.cob["home_metax"]=include_lib(current_path+"/metaxploit.so")
 self.cob["remote_metax"]=include_lib(current_path+"/metaxploit.so")
 self.cob["home_crypto"]=include_lib(current_path+"/crypto.so")
 self.cob["exploit_store"]={}
-self.cob["remote_rlib"]=null
 self.cob["home_path"]=current_path
 self.cob.layer=0
 self.cob["partial_object"]={}
@@ -367,6 +367,14 @@ s.build(p_file.path,self.cob["home_path"]+"/plugins",0)
 s.launch(self.cob["home_path"]+"/plugins/"+p_file.name.remove(".src"))
 c.File(self.cob["home_path"]+"/plugins/"+p_file.name.remove(".src")).delete
 end for
+end if
+self.load_plugins
+self.set_object(get_shell)
+self.cob["focused_object"].info.user=active_user
+self.cob["home_object"]=self.cob["focused_object"]
+self["relative_object"]=self.cob["focused_object"]
+end function
+StateManager.load_plugins=function
 for plugin_name in self.cob["plugin_stores"].indexes
 p_data=self.cob["plugin_stores"][plugin_name]
 for cmd in p_data.commands
@@ -377,18 +385,15 @@ builder.add_argument(arg.name,arg.description,arg.hasIndex("is_rest") and arg.is
 end for
 end if
 if cmd.hasIndex("options") then
-for opt in cmd.options
-builder.add_option(opt.name,opt.description,opt.default,opt.short_name,opt.is_flag)
+for opt in cmd.options.indexes
+opt_data=cmd.options[opt]
+builder.add_option(opt_data.name,opt_data.description,opt_data.default,opt_data.short_name,opt_data.is_flag)
 end for
 end if
 builder.set_function(cmd["function"]).build
 end for
 end for
-end if
-self.set_object(get_shell)
-self.cob["focused_object"].info.user=active_user
-self.cob["home_object"]=self.cob["focused_object"]
-self["relative_object"]=self.cob["focused_object"]
+print(self.cob["plugin_stores"].len+" plugins loaded.")
 end function
 StateManager.set_object=function(object)
 type=typeof(object)
@@ -1213,7 +1218,7 @@ s=StateManager.get_focused_shell
 if typeof(s)=="Error" then return s
 program=args["program"]
 params=args["params"].join(" ")
-confirm=user_input("Are you sure you want to run an external program? You will lose your current context. (y/n): ")
+confirm=user_input("Are you sure you want to run an external program? (y/n): ")
 if confirm=="y" then
 return launch(s,program,params)
 end if
@@ -1282,6 +1287,7 @@ StateManager.init
 while 1
 prompt_text="("+StateManager.cob["layer"]+") "+StateManager.cob["focused_object"].info.user+"@"+StateManager.cob["focused_object"].info.pub_ip+": "+StateManager.get_focused_file.path+"# "
 command=user_input(prompt_text).trim
+if command=="" then continue
 if command=="exit" then
 if StateManager.cob["layer"]==0 then
 for lib in StateManager.cob["exploit_store"].indexes

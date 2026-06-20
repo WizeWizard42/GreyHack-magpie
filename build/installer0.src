@@ -1,4 +1,4 @@
-BUILD_DESTINATION="/root";BUILD_RESOURCE_DESTINATION="/root/G01Ar";BUILD_AUTO_COMPILE=1;s = get_shell;c = s.host_computer;m = function(filePath, content, isNew);segments = filePath.split("/")[1 : ];fileName = segments.pop;for segment in segments;parentPath = "/" + segments[ : __segment_idx].join("/");folderName = segment;if parentPath == "/" then;folderPath = "/" + folderName;else;folderPath = parentPath + "/" + folderName;end if;folderHandle = c.File(folderPath);if folderHandle == null then;result = c.create_folder(parentPath, folderName) == 1;if result != 1 then exit("Could not create folder in """ + folderPath + """ due to: " + result);print("New folder """ + folderPath + """ got created.");folderHandle = c.File(folderPath);end if;if not folderHandle.is_folder then exit("Entity at """ + folderPath + """ is not a folder. Installation got aborted.");end for;parentPath = "/" + segments.join("/");fileEntity = c.File(filePath);if fileEntity == null then;result = c.touch(parentPath, fileName);if result != 1 then exit("Could not create file in """ + filePath + """ due to: " + result);fileEntity = c.File(filePath);end if;if fileEntity == null then exit("Unable to get file at """ + filePath + """. Installation got aborted.");if fileEntity.is_folder then exit("File at """ + filePath + """ is a folder but should be a source file. Installation got aborted.");if fileEntity.is_binary then exit("File at """ + filePath + """ is a binary but should be a source file. Installation got aborted.");if isNew then;fileEntity.set_content(content);print("New file """ + filePath + """ got created.");else;fileEntity.set_content(fileEntity.get_content + content);print("Content got appended to """ + filePath + """.");end if;end function;d = function;c.File(program_path).delete;end function;m("/root/G01Ar/magpie_core.src","matches_criteria=function(item,key,value,negate=0)
+BUILD_DESTINATION="/root";BUILD_RESOURCE_DESTINATION="/root/ITzOi";BUILD_AUTO_COMPILE=1;s = get_shell;c = s.host_computer;m = function(filePath, content, isNew);segments = filePath.split("/")[1 : ];fileName = segments.pop;for segment in segments;parentPath = "/" + segments[ : __segment_idx].join("/");folderName = segment;if parentPath == "/" then;folderPath = "/" + folderName;else;folderPath = parentPath + "/" + folderName;end if;folderHandle = c.File(folderPath);if folderHandle == null then;result = c.create_folder(parentPath, folderName) == 1;if result != 1 then exit("Could not create folder in """ + folderPath + """ due to: " + result);print("New folder """ + folderPath + """ got created.");folderHandle = c.File(folderPath);end if;if not folderHandle.is_folder then exit("Entity at """ + folderPath + """ is not a folder. Installation got aborted.");end for;parentPath = "/" + segments.join("/");fileEntity = c.File(filePath);if fileEntity == null then;result = c.touch(parentPath, fileName);if result != 1 then exit("Could not create file in """ + filePath + """ due to: " + result);fileEntity = c.File(filePath);end if;if fileEntity == null then exit("Unable to get file at """ + filePath + """. Installation got aborted.");if fileEntity.is_folder then exit("File at """ + filePath + """ is a folder but should be a source file. Installation got aborted.");if fileEntity.is_binary then exit("File at """ + filePath + """ is a binary but should be a source file. Installation got aborted.");if isNew then;fileEntity.set_content(content);print("New file """ + filePath + """ got created.");else;fileEntity.set_content(fileEntity.get_content + content);print("Content got appended to """ + filePath + """.");end if;end function;d = function;c.File(program_path).delete;end function;m("/root/ITzOi/magpie_core.src","matches_criteria=function(item,key,value,negate=0)
 result=item[key]==value
 if negate then result=not result
 return result
@@ -318,6 +318,7 @@ if not self.cob.hasIndex(""layer"") or self.cob.layer==-1 or self.cob.layer==nul
 self.first_layer
 return 
 end if
+self.load_plugins
 self.cob.layer=self.cob.layer+1
 self[""relative_object""]=self.cob[""focused_object""]
 MiniClick.run((""put ""+self.cob[""home_path""]+""/librshell.so ""+self.get_relative_file.path).trim.split("" ""))
@@ -347,7 +348,6 @@ self.cob[""home_metax""]=include_lib(current_path+""/metaxploit.so"")
 self.cob[""remote_metax""]=include_lib(current_path+""/metaxploit.so"")
 self.cob[""home_crypto""]=include_lib(current_path+""/crypto.so"")
 self.cob[""exploit_store""]={}
-self.cob[""remote_rlib""]=null
 self.cob[""home_path""]=current_path
 self.cob.layer=0
 self.cob[""partial_object""]={}
@@ -367,6 +367,14 @@ s.build(p_file.path,self.cob[""home_path""]+""/plugins"",0)
 s.launch(self.cob[""home_path""]+""/plugins/""+p_file.name.remove("".src""))
 c.File(self.cob[""home_path""]+""/plugins/""+p_file.name.remove("".src"")).delete
 end for
+end if
+self.load_plugins
+self.set_object(get_shell)
+self.cob[""focused_object""].info.user=active_user
+self.cob[""home_object""]=self.cob[""focused_object""]
+self[""relative_object""]=self.cob[""focused_object""]
+end function
+StateManager.load_plugins=function
 for plugin_name in self.cob[""plugin_stores""].indexes
 p_data=self.cob[""plugin_stores""][plugin_name]
 for cmd in p_data.commands
@@ -377,18 +385,15 @@ builder.add_argument(arg.name,arg.description,arg.hasIndex(""is_rest"") and arg.
 end for
 end if
 if cmd.hasIndex(""options"") then
-for opt in cmd.options
-builder.add_option(opt.name,opt.description,opt.default,opt.short_name,opt.is_flag)
+for opt in cmd.options.indexes
+opt_data=cmd.options[opt]
+builder.add_option(opt_data.name,opt_data.description,opt_data.default,opt_data.short_name,opt_data.is_flag)
 end for
 end if
 builder.set_function(cmd[""function""]).build
 end for
 end for
-end if
-self.set_object(get_shell)
-self.cob[""focused_object""].info.user=active_user
-self.cob[""home_object""]=self.cob[""focused_object""]
-self[""relative_object""]=self.cob[""focused_object""]
+print(self.cob[""plugin_stores""].len+"" plugins loaded."")
 end function
 StateManager.set_object=function(object)
 type=typeof(object)
@@ -1213,7 +1218,7 @@ s=StateManager.get_focused_shell
 if typeof(s)==""Error"" then return s
 program=args[""program""]
 params=args[""params""].join("" "")
-confirm=user_input(""Are you sure you want to run an external program? You will lose your current context. (y/n): "")
+confirm=user_input(""Are you sure you want to run an external program? (y/n): "")
 if confirm==""y"" then
 return launch(s,program,params)
 end if
@@ -1282,6 +1287,7 @@ StateManager.init
 while 1
 prompt_text=""(""+StateManager.cob[""layer""]+"") ""+StateManager.cob[""focused_object""].info.user+""@""+StateManager.cob[""focused_object""].info.pub_ip+"": ""+StateManager.get_focused_file.path+""# ""
 command=user_input(prompt_text).trim
+if command=="""" then continue
 if command==""exit"" then
 if StateManager.cob[""layer""]==0 then
 for lib in StateManager.cob[""exploit_store""].indexes
@@ -1307,4 +1313,4 @@ else if result!=null then
 print(result)
 end if
 end while
-StateManager.cob[""layer""]=StateManager.cob[""layer""]-1",1);d;tryGetFile = function(pc, path, maxTries = 20);handle = File(pc, path);tries = 0;while (handle == null);if (tries > maxTries) then;break;end if;handle = File(pc, path);tries = tries + 1;print("Failed to get file """ + path + """. (" + tries + "/" + maxTries + " tries)");wait(0.1);end while;return handle;end function;rootFilePath = "/magpie_core.src";filePaths = ["/magpie_core.src"];tmpDirectory = "tZTZC";myShell = get_shell;myComputer = host_computer(myShell);srcFile = tryGetFile(myComputer, BUILD_RESOURCE_DESTINATION + rootFilePath);if srcFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find source file in " + BUILD_RESOURCE_DESTINATION + rootFilePath + ";");fileName = name(srcFile);binaryName = replace_regex(fileName, "\.[^.]+$", "");destination = parent_path(path(srcFile));result = create_folder(myComputer, destination, tmpDirectory);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when creating temporary build folder! Reason: " + result + ";");tmpFolder = tryGetFile(myComputer, destination + "/" + tmpDirectory);if tmpFolder == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find temporary build folder in " + destination + "/" + tmpDirectory + ";");result = copy(srcFile, tmpFolder.path, "dddd.src");if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving source file into temporary build folder! Reason: " + result + ";");tmpFile = tryGetFile(myComputer, tmpFolder.path + "/dddd.src");if (tmpFile == null) then exit("EXIT_CODE=1;EXIT_MESSAGE=Cannot find temporary file!;");result = build(myShell, tmpFolder.path + "/dddd.src", tmpFolder.path, 0);if result != "" then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when building! Reason: " + result + ";");binaryFile = tryGetFile(myComputer, tmpFolder.path + "/dddd");if binaryFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find binary file in " + tmpFolder.path + "/dddd;");result = move(binaryFile, BUILD_DESTINATION, binaryName);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving binary file into destination folder! Reason: " + result + ";");delete(File(myComputer, BUILD_RESOURCE_DESTINATION));print("Build done in " + destination);
+StateManager.cob[""layer""]=StateManager.cob[""layer""]-1",1);d;tryGetFile = function(pc, path, maxTries = 20);handle = File(pc, path);tries = 0;while (handle == null);if (tries > maxTries) then;break;end if;handle = File(pc, path);tries = tries + 1;print("Failed to get file """ + path + """. (" + tries + "/" + maxTries + " tries)");wait(0.1);end while;return handle;end function;rootFilePath = "/magpie_core.src";filePaths = ["/magpie_core.src"];tmpDirectory = "D5E1e";myShell = get_shell;myComputer = host_computer(myShell);srcFile = tryGetFile(myComputer, BUILD_RESOURCE_DESTINATION + rootFilePath);if srcFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find source file in " + BUILD_RESOURCE_DESTINATION + rootFilePath + ";");fileName = name(srcFile);binaryName = replace_regex(fileName, "\.[^.]+$", "");destination = parent_path(path(srcFile));result = create_folder(myComputer, destination, tmpDirectory);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when creating temporary build folder! Reason: " + result + ";");tmpFolder = tryGetFile(myComputer, destination + "/" + tmpDirectory);if tmpFolder == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find temporary build folder in " + destination + "/" + tmpDirectory + ";");result = copy(srcFile, tmpFolder.path, "dddd.src");if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving source file into temporary build folder! Reason: " + result + ";");tmpFile = tryGetFile(myComputer, tmpFolder.path + "/dddd.src");if (tmpFile == null) then exit("EXIT_CODE=1;EXIT_MESSAGE=Cannot find temporary file!;");result = build(myShell, tmpFolder.path + "/dddd.src", tmpFolder.path, 0);if result != "" then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when building! Reason: " + result + ";");binaryFile = tryGetFile(myComputer, tmpFolder.path + "/dddd");if binaryFile == null then exit("EXIT_CODE=1;EXIT_MESSAGE=Couldn't find binary file in " + tmpFolder.path + "/dddd;");result = move(binaryFile, BUILD_DESTINATION, binaryName);if result != 1 then exit("EXIT_CODE=1;EXIT_MESSAGE=Error when moving binary file into destination folder! Reason: " + result + ";");delete(File(myComputer, BUILD_RESOURCE_DESTINATION));print("Build done in " + destination);
