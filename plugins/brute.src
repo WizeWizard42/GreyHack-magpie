@@ -1,0 +1,308 @@
+// Wrap a number to signed 32-bit, emulating .NET `int` overflow (MiniScript uses doubles).
+// Per-network seeds are large, so the init subtractions overflow and must wrap.
+_i32 = function(x)
+    x = x - floor(x / 4294967296) * 4294967296
+    if x >= 2147483648 then x = x - 4294967296
+    return x
+end function
+
+//Random ported from .net4 to greyscript
+// By MachaCeleste 20240323
+// int32-overflow wraparound + game-accurate fixes by Merlin Newcomb 2026
+Random = {}
+Random.MaxValue = 2147483647
+Random.MinValue = -2147483648
+Random._seedArray = [0]*56
+Random._inext = 0
+Random.inextp = 0
+Random.seed = null
+Random.init = function(seed)
+    if not seed then seed = round((rnd*(self.MaxValue-self.MinValue))+self.MinValue)
+    self.seed = seed
+    self._seedArray = [0]*56    // instance-local: each Random needs its own state (for clone)
+    num = 0
+    num2 = abs(seed)
+    if seed == self.MinValue then num2 = self.MaxValue
+    num3 = _i32(161803398 - num2)
+    self._seedArray[55] = num3
+    num4 = 1
+    for i in range(1, 54)
+        num = num + 21
+        if num >= 55 then num = num - 55
+        self._seedArray[num] = num4
+        num4 = _i32(num3 - num4)
+        if num4 < 0 then num4 = num4 + self.MaxValue
+        num3 = self._seedArray[num]
+    end for
+    for j in range(1, 4)
+        for k in range(1, 55)
+            num5 = k + 30
+            if num5 >= 55 then num5 = num5 - 55
+            self._seedArray[k] = _i32(self._seedArray[k] - self._seedArray[1 + num5])
+            if self._seedArray[k] < 0 then self._seedArray[k] = self._seedArray[k] + self.MaxValue
+        end for
+    end for
+    self._inext = 0
+    self._inextp = 21
+end function
+Random.Next = function(max, min = null)
+    if min == null then return floor(self.sample * max)    // .NET (int) cast truncates
+    num = max - min
+    if num <= 2147483647 then return floor(self.sample * num) + min
+    return floor(self.getlongsample * num) + min
+end function
+Random.sample = function
+    return self.intsample * 4.656612875245797E-10
+end function
+Random.intsample = function
+    num = self._inext
+    num2 = self._inextp
+    num = num + 1
+    if num >= 56 then num = 1
+    num2 = num2 + 1
+    if num2 >= 56 then num2 = 1
+    num3 = _i32(self._seedArray[num] - self._seedArray[num2])
+    if num3 == 2147483647 then num3 = num3 - 1
+    if num3 < 0 then num3 = num3 + self.MaxValue
+    self._seedArray[num] = num3
+    self._inext = num
+    self._inextp = num2
+    return num3
+end function
+Random.getlongsample = function
+    num = self.intsample
+    if self.intsample % 2 == 0 then num = -num
+    return (num + 2147483646.0) / 4294967293.0
+end function
+// Snapshot the RNG state so the stream can be probed at each offset without consuming it.
+Random.clone = function
+    r = new Random
+    r._seedArray = self._seedArray[:]
+    r._inext = self._inext
+    r._inextp = self._inextp
+    return r
+end function
+
+//Markov Name Generator ported from C# for greyscript
+// By MachaCeleste 20240325
+MarkovNameGenerator = {}
+MarkovNameGenerator._order = 0
+MarkovNameGenerator._minLength = 0
+MarkovNameGenerator._chains = {}
+MarkovNameGenerator._samples = []
+MarkovNameGenerator.init = function(sampleNames, order, minLength)
+    if order < 1 then order = 1
+    if minLength < 1 then minLength = 1
+    self._order = order
+    self._minLength = minLength
+    self._samples = []      // instance-local: avoid accumulating on the shared prototype
+    self._chains = {}
+    for text in sampleNames
+        array = text.split(",")
+        for i in range(0, array.len-1)
+            text2 = array[i].trim.upper
+            if text2.len >= order + 1 then self._samples.push(text2)
+        end for
+    end for
+    for text3 in self._samples
+        for j in range(0, text3.len-order-1)
+            key = text3[j:j+order]
+            lst = []
+            if self._chains.hasIndex(key) then
+                lst = self._chains[key]
+            else
+                self._chains[key] = lst
+            end if
+            lst.push(text3[j + order])
+        end for
+    end for
+end function
+MarkovNameGenerator.NextName = function(random)
+    text = ""
+    while text.len < self._minLength
+        index = random.Next(self._samples.len)
+        length = self._samples[index].len
+        start = random.Next(length - self._order, 0)
+        text = self._samples[index][start:start+self._order]
+        while text.len < length
+            start = text.len - self._order
+            token = text[start:start+self._order]
+            if self.GetLetter(token, random) == "?" then break
+            text = text + str(self.GetLetter(token, random))
+        end while
+        if text.is_match(" ") then
+            array = text.split(" ")
+            text = ""
+            for i in range(0, array.len-1)
+                if array[i] != "" then
+                    if array[i].len == 1 then
+                        array[i] = array[i].upper
+                    else
+                        array[i] = array[i][0:1] + array[i][1:].lower
+                    end if
+                    if text != "" then text = text + " "
+                    text = text + array[i]
+                end if
+            end for
+        else
+            text = text[0:1] + text[1:].lower
+        end if
+    end while
+    text2 = text[0:1]
+    text3 = text[1:2]
+    if text2.lower == text3 or (text3 != "h" and text3 != "r" and text3 != "l" and text3 != "'" and (text2 + text3) != "Ch" and not self.IsVocal(text2) and (text2 + text3) != "Mc" and not self.IsVocal(text3) and text2 != "S") then text = text3.upper + text[2:]
+    return text
+end function
+MarkovNameGenerator.IsVocal = function(c)
+    return "aeiouAEIOU".indexOf(c) != null
+end function
+MarkovNameGenerator.GetLetter = function(token, random)
+    if not self._chains.hasIndex(token) then return "?"
+    lst = self._chains[token]
+    index = random.Next(lst.len)
+    return lst[index]
+end function
+
+cob = @get_custom_object
+
+brute_plugin = {
+    "name": "brute_plugin",
+    "description": "Markov-chain and dictionary brute-forcing for mail accounts. Reads surnames.txt, passwords.txt, and RockYouSplit0-3 from the working directory of the machine running magpie.",
+    "helpers": {},
+    "commands": [],
+    "stores": {},
+}
+
+EMAIL_REGEX = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+
+// Read a newline-separated wordlist from the local machine.
+brute_plugin.helpers.load_lines = function(path)
+    f = StateManager.get_home_computer.File(path)
+    if f == null then return Error.init("File not found: " + path)
+    return f.get_content.split(char(10))
+end function
+
+// Markov brute-force an NPC mailbox's password from a sample wordlist.
+brute_plugin.helpers.markov_password = function(email, iters)
+    passwords = brute_plugin.helpers.load_lines(cob["home_path"] + "/passwords.txt")
+    if typeof(passwords) == "Error" then return passwords
+
+    rand = new Random
+    markov = new MarkovNameGenerator
+    markov.init(passwords, 3, 3)
+
+    iterCount = 0
+    while true
+        rand.init
+        print("Current seed: " + rand.seed)
+        for i in range(0, iters)
+            password = markov.NextName(rand)
+            if typeof(mail_login(email, password)) == "MetaMail" then return "Password found after " + floor(iterCount / iters) + " rerolls and " + (iterCount + i) + " iterations: " + password
+            if typeof(mail_login(email, password.lower)) == "MetaMail" then return "Password found after " + floor(iterCount / iters) + " rerolls and " + (iterCount + i) + " iterations: " + password.lower
+        end for
+        iterCount = iterCount + iters
+    end while
+end function
+
+// Markov fuzz NPC usernames against a domain using a surname wordlist.
+brute_plugin.helpers.markov_user = function(email, iters)
+    surnames = brute_plugin.helpers.load_lines(cob["home_path"] + "/surnames.txt")
+    if typeof(surnames) == "Error" then return surnames
+    domain = email.split("@")[1]
+
+    rand = new Random
+    markov = new MarkovNameGenerator
+    markov.init(surnames, 3, 3)
+
+    iterCount = 0
+    while true
+        rand.init
+        print("Current seed: " + rand.seed)
+        for i in range(0, iters)
+            surname = markov.NextName(rand)
+            mail = mail_login(surname + "@" + domain, "test")
+            if typeof(mail) == "MetaMail" or mail.is_match("Wrong password") then return "User found after " + floor(iterCount / iters) + " rerolls and " + (iterCount + i) + " iterations: " + surname
+        end for
+        iterCount = iterCount + iters
+    end while
+end function
+
+// Dictionary attack a player mailbox against the RockYouSplit wordlists.
+brute_plugin.helpers.dictionary_password = function(email)
+    c = get_shell.host_computer
+
+    for i in range(0, 3)
+        split_dir = c.File(cob["home_path"] + "/RockYouSplit" + i)
+        if split_dir == null then return Error.init("Directory not found: " + cob["home_path"] + "/RockYouSplit" + i)
+
+        for file in split_dir.get_files
+            ps = c.show_procs.split(char(10))[1:]
+            for p in ps
+                parsed = p.split(" ")
+                if parsed[4:5][0].trim == "ExploitReport" then return "ExploitReport.exe has been opened. Stopping."
+            end for
+
+            print("Current file: " + file.path)
+            passwords = file.get_content.split(char(10))
+            for pass in passwords
+                if pass.trim == "" then continue
+                if typeof(mail_login(email, pass)) == "MetaMail" then return "Password found: " + pass
+            end for
+        end for
+    end for
+
+    return "Password not found."
+end function
+
+cmd_npcmail = {
+    "name": "npcmail",
+    "description": "Markov brute-force an NPC mailbox password. Reads samples from passwords.txt in the working directory.",
+    "arguments": [
+        {"name": "email", "description": "The target email address."},
+        {"name": "iterations", "description": "Guesses to attempt per reroll."},
+    ],
+    "options": {},
+}
+cmd_npcmail["function"] = function(args)
+    iters = args.iterations.to_int
+    if typeof(iters) != "number" then return Error.init("Invalid iteration count: " + args.iterations)
+    if not args.email.is_match(EMAIL_REGEX) then return Error.init("Invalid email format.")
+
+    return brute_plugin.helpers.markov_password(args.email, iters)
+end function
+
+cmd_npcfuzz = {
+    "name": "npcfuzz",
+    "description": "Markov fuzz NPC usernames against a domain. Reads samples from surnames.txt in the working directory.",
+    "arguments": [
+        {"name": "email", "description": "An email on the target domain (used for its domain part)."},
+        {"name": "iterations", "description": "Guesses to attempt per reroll."},
+    ],
+    "options": {},
+}
+cmd_npcfuzz["function"] = function(args)
+    iters = args.iterations.to_int
+    if typeof(iters) != "number" then return Error.init("Invalid iteration count: " + args.iterations)
+    if not args.email.is_match(EMAIL_REGEX) then return Error.init("Invalid email format.")
+
+    return brute_plugin.helpers.markov_user(args.email, iters)
+end function
+
+cmd_playermail = {
+    "name": "playermail",
+    "description": "Dictionary attack a player mailbox using RockYouSplit0-3 in the working directory. Aborts if ExploitReport.exe is opened.",
+    "arguments": [
+        {"name": "email", "description": "The target email address."},
+    ],
+    "options": {},
+}
+cmd_playermail["function"] = function(args)
+    if not args.email.is_match(EMAIL_REGEX) then return Error.init("Invalid email format.")
+
+    return brute_plugin.helpers.dictionary_password(args.email)
+end function
+
+brute_plugin.commands.push(cmd_npcmail)
+brute_plugin.commands.push(cmd_npcfuzz)
+brute_plugin.commands.push(cmd_playermail)
+cob.plugin_stores["brute_plugin"] = brute_plugin

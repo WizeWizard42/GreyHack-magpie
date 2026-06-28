@@ -500,8 +500,7 @@ StateManager.first_layer = function()
     if plugin_folder then
         for p_file in plugin_folder.get_files
             if p_file.name.indexOf(".src") == null then continue
-            
-            s.build(p_file.path, self.cob["home_path"] + "/plugins", false)
+            result = s.build(p_file.path, self.cob["home_path"] + "/plugins", false)
             s.launch(self.cob["home_path"] + "/plugins/" + p_file.name.remove(".src"))
             
             c.File(self.cob["home_path"] + "/plugins/" + p_file.name.remove(".src")).delete
@@ -549,6 +548,13 @@ StateManager.set_object = function(object)
     if type == "number" then return type
     if type == "null" then return "unknown"
 
+    user = FileManager.get_perms(object)
+    if typeof(user) == "Error" then
+        print(user.message.color("red"))
+        print("Continuing with unknown user...")
+        user = "unknown"
+    end if
+
     if type == "shell" or type == "ftpShell" then
         self.cob["focused_object"] = {
             "uid": md5(str(rnd))[:6],
@@ -556,7 +562,7 @@ StateManager.set_object = function(object)
             "computer": object.host_computer,
             "shell": object,
             "info": {
-                "user": "unknown",
+                "user": user,
                 "domain": object.host_computer.get_name,
                 "pub_ip": object.host_computer.public_ip,
                 "local_ip": object.host_computer.local_ip,
@@ -572,7 +578,7 @@ StateManager.set_object = function(object)
             "computer": object,
             "shell": null,
             "info": {
-                "user": "unknown",
+                "user": user,
                 "domain": object.get_name,
                 "pub_ip": object.public_ip,
                 "local_ip": object.local_ip,
@@ -588,7 +594,7 @@ StateManager.set_object = function(object)
             "computer": null,
             "shell": null,
             "info": {
-                "user": "unknown",
+                "user": user,
                 "domain": "unknown",
                 "pub_ip": "unknown",
                 "local_ip": "unknown",
@@ -662,6 +668,8 @@ StateCommands.list_objects = function(args)
         if StateManager.cob["focused_object"]["uid"] == obj["uid"] then result = result + " (focused)"
         if StateManager["relative_object"]["uid"] == obj["uid"] then result = result + " (relative)"
         if StateManager.cob["home_object"]["uid"] == obj["uid"] then result = result + " (home)"
+
+        result = result + " " + obj["info"]["user"]
 
         if obj["shell"] != null then
             result = result + " shell "
@@ -1066,7 +1074,12 @@ ExploitManager.shotgun_lib = function(meta_lib, opt_val, info)
                 StateManager.cob["focused_object"]["info"]["pub_ip"] = info["pub_ip"]
                 StateManager.cob["focused_object"]["info"]["local_ip"] = info["local_ip"]
             end if
-            ExploitManager.save_exploit(libname, libversion, address, string, ["unknown", type])
+            user = FileManager.get_perms(object)
+            if typeof(user) == "Error" then
+                print(user.message.color("red"))
+                user = "unknown"
+            end if
+            ExploitManager.save_exploit(libname, libversion, address, string, [user, type])
         end for
     end for
 end function
@@ -1297,6 +1310,29 @@ FileManager.resolve_entry = function(f, name)
     return Error.init("File not found: " + name)
 end function
 
+FileManager.get_perms = function(f)
+    if typeof(f) == "Error" then return f
+    if typeof(f) == "string" then return Error.init(f)
+    if f == null then return "unknown"
+    if typeof(f) == "shell" then f = f.host_computer.File("/")
+    if typeof(f) == "computer" then f = f.File("/")
+
+    file = FileManager.resolve_path(f, "/")
+    if typeof(file) == "Error" then return file
+    if file.has_permission("w") then return "root"
+    file = FileManager.resolve_path(f, "/home")
+    // If /home doesn't exist and you can't write to the base directory, the pc is hardened and you're GONNA be guest.
+    if typeof(file) == "Error" then return "guest"
+
+    homes = file.get_folders
+    if homes.len == 0 then return "guest" // No homes? No user.
+    for home in homes
+        if home.name == "guest" then continue
+        if home.has_permission("w") then return "user"
+    end for
+    return "guest"
+end function
+
 ////////////////////////////////////////////////////
 
 FileCommands = {}
@@ -1516,6 +1552,22 @@ FileCommands.move_file = function(args)
     end if
 end function
 
+FileCommands.rename_file = function(args)
+    f = StateManager.get_focused_file()
+    if typeof(f) == "Error" then return f
+
+    filename = args["filename"]
+    newname = args["newname"]
+
+    file = FileManager.resolve_entry(f, filename)
+    if typeof(file) == "Error" then return file
+
+    result = file.rename(newname)
+    if typeof(result) == "string" then
+        return Error.init("Error renaming file: " + result)
+    end if
+end function
+
 MiniClick.create_command("cat", "Read the contents of a file").
     add_argument("filename", "The name of the file to read").
     set_function(FileCommands["read_file"]).
@@ -1579,6 +1631,12 @@ MiniClick.create_command("mv", "Move a file").
     add_argument("destination", "The destination folder").
     add_argument("newname", "The new name of the file").
     set_function(FileCommands["move_file"]).
+    build()
+
+MiniClick.create_command("rename", "Rename a file").
+    add_argument("filename", "The name of the file to rename").
+    add_argument("newname", "The name to rename the file to").
+    set_function(FileCommands["rename_file"]).
     build()
 
 ////////////////////////////////////////////////////
@@ -1783,6 +1841,9 @@ ShellCommands.put_file = function(args)
 end function
 
 ShellCommands.force_read = function(args)
+    // This method of reading files you didn't have permission to was patched in newer versions of the game.
+    // Now, on build permissions are checked for the file being included in import_code.
+    // This code is being included for posterity and in case someone wants to look at it.
     return "Doesn't work, but code is still here if you want to look."
     s = StateManager.get_focused_shell()
     c = StateManager.get_focused_computer()
@@ -1954,9 +2015,6 @@ MiniClick.create_command("pivot", "Pivot to current focus, if it's a shell").
 ////////////////////////////////////////////////////
 // Basic testing usage
 ////////////////////////////////////////////////////
-
-// Uncomment to enable File tests
-//#include testing/file_tests.src;
 
 StateManager.init()
 

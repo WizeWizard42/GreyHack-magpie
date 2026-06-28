@@ -14,13 +14,16 @@ rshell_plugin.helpers.rshell_setlib = function()
 end function
 
 rshell_plugin.helpers.rshell_install_server = function()
-    StateManager.get_home_shell().scp("/root/VulnLibs/librshell.so", StateManager.get_relative_computer().File("/lib"), StateManager.get_relative_shell())
+    result = StateManager.get_home_shell().scp("/root/VulnLibs/librshell.so", "/lib", StateManager.get_relative_shell())
+    if typeof(result) == "string" then return Error.init("Error copying reverse shell library: " + result)
 
     rshelld = include_lib("/lib/librshell.so")
     if not rshelld then return Error.init("Failed to install reverse shell server.")
 
     result = rshelld.install_service
-    if result != true then return Error.init("Error installing rshell: " + result)
+    if typeof(result) == "string" then return Error.init("Error installing rshell: " + result)
+    result = rshelld.start_service
+    if typeof(result) == "string" then return Error.init("Error starting rshell: " + result)
 end function
 
 rshell_plugin.helpers.rshell_update = function()
@@ -43,6 +46,11 @@ rshell_plugin.helpers.rshell_connect = function(ip, port, proc="Terminal.exe")
 end function
 
 rshell_plugin.helpers.rshell_use_client = function(client)
+    if typeof(client) == "string" then
+        client = client.to_int()
+        if typeof(client) != "int" then return Error.init("Client index must be an integer.")
+    end if
+
     if not rshell_plugin.stores.hasIndex("clients") then return Error.init("No clients in store.")
     if client < 0 or client >= rshell_plugin.stores["clients"].len then return Error.init("Client index out of range.")
     return StateManager.set_object(rshell_plugin.stores["clients"][client])
@@ -102,10 +110,23 @@ cmd_rconnect = {
 }
 cmd_rconnect["function"] = function(args)
     ip = args.IP
-    port = args.port
+    port = args.port.to_int()
     proc = args.process
 
     result = rshell_plugin.helpers.rshell_connect(ip, port, proc)
+    if typeof(result) == "Error" then return result
+
+    return result
+end function
+
+cmd_rset = {
+    "name": "rset",
+    "description": "Set the active reverse shell server to relative metax.",
+    "arguments": [],
+    "options": {},
+}
+cmd_rset["function"] = function(args)
+    result = rshell_plugin.helpers.rshell_setlib()
     if typeof(result) == "Error" then return result
 
     return result
@@ -120,7 +141,7 @@ cmd_ruse = {
     "options": {},
 }
 cmd_ruse["function"] = function(args)
-    index = args.index
+    index = args.index.to_int()
     result = rshell_plugin.helpers.rshell_use_client(index)
     if typeof(result) == "Error" then return result
 
@@ -131,5 +152,6 @@ end function
 rshell_plugin.commands.push(cmd_rinstall)
 rshell_plugin.commands.push(cmd_rlist)
 rshell_plugin.commands.push(cmd_rconnect)
+rshell_plugin.commands.push(cmd_rset)
 rshell_plugin.commands.push(cmd_ruse)
 cob.plugin_stores["rshell_plugin"] = rshell_plugin
