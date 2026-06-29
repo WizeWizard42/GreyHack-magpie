@@ -705,6 +705,8 @@ StateCommands.release_object = function(args)
     end if
 
     if StateManager.cob["focused_object"]["uid"] == uid then return Error.init("Cannot release focused object.")
+    if StateManager.cob["relative_object"]["uid"] == uid then return Error.init("Cannot release relative object.")
+    if StateManager.cob["home_object"]["uid"] == uid then return Error.init("Cannot release home object.")
 
     index = StateManager.cob["stored_objects"].indexOf(obj)
 
@@ -857,6 +859,7 @@ ExploitManager.full_enum = function(ip)
     result = result + "Router LAN IP: " + router.local_ip + "\n"
     result = result + "Router BSSID: " + router.bssid_name + "\n"
     result = result + "Router ESSID: " + router.essid_name + "\n"
+    result = result + "Router kernel: " + router.port_info(router.ping_port(0)) + "\n\n"
     result = result + "Port forwards detected:\n"
 
     for port in router.used_ports
@@ -878,7 +881,7 @@ ExploitManager.full_enum = function(ip)
         ports = router.device_ports(lan)
 
         for port in ports
-            result = result + port.port_number + "  open:" + (not port.is_closed) + "  " + router.port_info(port) + port.get_lan_ip + "\n"
+            result = result + port.port_number + "  open:" + (not port.is_closed) + "  " + router.port_info(port) + " " + port.get_lan_ip + "\n"
         end for
     end for
 
