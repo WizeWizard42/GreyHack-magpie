@@ -859,7 +859,7 @@ ExploitManager.full_enum = function(ip)
     result = result + "Router LAN IP: " + router.local_ip + "\n"
     result = result + "Router BSSID: " + router.bssid_name + "\n"
     result = result + "Router ESSID: " + router.essid_name + "\n"
-    result = result + "Router kernel: " + router.port_info(router.ping_port(0)) + "\n\n"
+    result = result + "Router kernel: " + router.kernel_version + "\n\n"
     result = result + "Port forwards detected:\n"
 
     for port in router.used_ports

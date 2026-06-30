@@ -102,7 +102,7 @@ cmd_rconnect = {
         "process": {
             "name": "process",
             "description": "The process to spawn on the target (default: Terminal.exe).",
-            "default": "Terminal.exe",
+            "default": "Terminal",
             "short_name": "p",
             "is_flag": false,
         },
